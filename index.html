@@ -3,14 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aplikasi Presensi Karyawan & Dasbor Admin (Firebase)</title>
+  <title>Aplikasi Presensi Karyawan & Dasbor Admin</title>
   
   <!-- Chart.js & SheetJS -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+  <!-- Firebase SDK (v9 Compat Mode) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
   <!-- Library Face API untuk Pemindaian AI Wajah -->
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-
+  
   <style>
     * { box-sizing: border-box; }
     body {
@@ -83,9 +88,9 @@
       </div>
     </div>
 
-    <!-- Status AI Wajah -->
+    <!-- Status AI Wajah & Firebase -->
     <div id="aiStatus" style="background:#fff3cd; color:#856404; padding:8px 12px; border-radius:6px; margin-bottom:15px; text-align:center; font-size:14px;">
-      ⏳ Memuat AI Verifikasi Wajah & Firebase... Mohon tunggu.
+      ⏳ Memuat AI Verifikasi Wajah & Menghubungkan Firebase... Mohon tunggu.
     </div>
 
     <!-- Header Logo & Bismillah -->
@@ -196,32 +201,52 @@
 
   </div>
 
-  <!-- FIREBASE SDK & APP SCRIPT -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
-
-    // ⚠️ GANTI KONFIGURASI DI BAWAH INI DENGAN CONFIG PRIBADI DARI FIREBASE CONSOLE ANDA ⚠️
+  <script>
+    // -------------------------------------------------------------------
+    // 1. KONFIGURASI FIREBASE (MASUKKAN KUNCI FIREBASE ANDA DI SINI)
+    // -------------------------------------------------------------------
     const firebaseConfig = {
-      apiKey: "AIzaSyYOUR_API_KEY_HERE",
-      authDomain: "your-app.firebaseapp.com",
-      databaseURL: "https://your-app-default-rtdb.firebaseio.com",
-      projectId: "your-app",
-      storageBucket: "your-app.appspot.com",
-      messagingSenderId: "1234567890",
-      appId: "1:1234567890:web:abcdef123456"
+  apiKey: "AIzaSyD8x9XxxxExampleKey123",
+  authDomain: "absen-el-hajj.firebaseapp.com",
+  projectId: "absen-el-hajj",
+  storageBucket: "absen-el-hajj.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abc123def456"
     };
 
-    // Inisialisasi Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
+    // Variable global
     let daftarKaryawan = [];
     let karyawanAktif = null;
     let chartPie = null;
     let chartBar = null;
     let currentStream = null;
     let isAiLoaded = false;
+
+    // -------------------------------------------------------------------
+    // 2. MEMBACA DATA REALTIME DARI FIREBASE
+    // -------------------------------------------------------------------
+    function muatDataFirebase() {
+      db.collection('karyawan').onSnapshot((snapshot) => {
+        daftarKaryawan = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          daftarKaryawan.push({
+            docId: doc.id,
+            ...data
+          });
+        });
+        
+        renderTabelKaryawan();
+        if (document.getElementById('page-admin').style.display !== 'none') {
+          renderGrafik();
+        }
+      }, (error) => {
+        console.error("Gagal mengambil data dari Firebase: ", error);
+      });
+    }
 
     // Load Model AI Verifikasi Wajah saat web terbuka
     async function initFaceAI() {
@@ -235,52 +260,46 @@
         isAiLoaded = true;
         aiStatus.style.background = "#d4edda";
         aiStatus.style.color = "#155724";
-        aiStatus.innerText = "✅ AI Verifikasi Wajah & Firebase Siap!";
+        aiStatus.innerText = "✅ AI Verifikasi Wajah & Database Firebase Siap!";
       } catch (err) {
         aiStatus.innerText = "❌ Gagal memuat AI Wajah: " + err.message;
       }
     }
 
-    // Ambil Data Karyawan Real-time dari Firebase
-    const karyawanRef = ref(db, 'karyawan');
-    onValue(karyawanRef, (snapshot) => {
-      daftarKaryawan = [];
-      const data = snapshot.val();
-      if (data) {
-        Object.keys(data).forEach(key => {
-          daftarKaryawan.push({ firebaseId: key, ...data[key] });
-        });
-      }
-      renderTabelKaryawan();
-      renderGrafik();
-    });
-
-    // Fungsi Kamera Fleksibel (Laptop & HP)
+    // Fungsi Akses Kamera
     async function startCamera(elementId) {
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
       }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Browser Anda memblokir kamera. Pastikan memberikan izin lokasi & kamera.");
+        return;
+      }
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         currentStream = stream;
         const videoElem = document.getElementById(elementId);
-        if (videoElem) videoElem.srcObject = stream;
+        if (videoElem) {
+          videoElem.srcObject = stream;
+        }
       } catch (err) {
-        alert("Akses kamera ditolak atau kamera tidak aktif: " + err.message);
+        alert("Akses kamera ditolak. Silakan periksa izin kamera di pengaturan browser Anda.");
       }
     }
 
-    window.bukaModalAdmin = function() {
+    function bukaModalAdmin() {
       document.getElementById('modalAdmin').style.display = 'flex';
       document.getElementById('passAdminInput').value = '';
       document.getElementById('passAdminInput').focus();
-    };
+    }
 
-    window.tutupModalAdmin = function() {
+    function tutupModalAdmin() {
       document.getElementById('modalAdmin').style.display = 'none';
-    };
+    }
 
-    window.submitLoginAdmin = function() {
+    function submitLoginAdmin() {
       const pass = document.getElementById('passAdminInput').value;
       if (pass === "admin@1234#") {
         tutupModalAdmin();
@@ -295,18 +314,20 @@
       } else {
         alert("Password Admin Salah! Gunakan: admin@1234#");
       }
-    };
+    }
 
-    window.logoutAdmin = function() {
+    function logoutAdmin() {
       if (currentStream) currentStream.getTracks().forEach(track => track.stop());
       document.getElementById('page-karyawan').style.display = 'block';
       document.getElementById('page-admin').style.display = 'none';
       document.getElementById('btn-login-admin').style.display = 'inline-block';
       document.getElementById('btn-logout-admin').style.display = 'none';
-    };
+    }
 
-    // Tambah Karyawan Baru & Simpan ke Firebase Database
-    window.tambahKaryawan = async function() {
+    // -------------------------------------------------------------------
+    // 3. TAMBAH KARYAWAN BARU & SIMPAN KE FIREBASE
+    // -------------------------------------------------------------------
+    async function tambahKaryawan() {
       if (!isAiLoaded) return alert("Tunggu hingga AI Wajah selesai dimuat!");
 
       const nama = document.getElementById('newNama').value.trim();
@@ -332,40 +353,54 @@
           return;
         }
 
-        const newRef = push(ref(db, 'karyawan'));
-        await set(newRef, {
-          nama,
-          nik,
-          jabatan,
-          kodeUnik,
+        const dataBaru = {
+          nama: nama,
+          nik: nik,
+          jabatan: jabatan,
+          kodeUnik: kodeUnik,
           totalHadir: 0,
-          faceDescriptor: Array.from(detection.descriptor)
-        });
+          faceDescriptor: Array.from(detection.descriptor),
+          createdAt: new Date()
+        };
 
-        alert(`Karyawan ${nama} berhasil tersimpan di Firebase!`);
-        document.getElementById('newNama').value = '';
-        document.getElementById('newNik').value = '';
-        document.getElementById('newJabatan').value = '';
-        document.getElementById('newKodeUnik').value = '';
+        try {
+          await db.collection('karyawan').add(dataBaru);
+          alert(`Karyawan ${nama} & data foto AI wajah berhasil disimpan ke Firebase!`);
+          
+          document.getElementById('newNama').value = '';
+          document.getElementById('newNik').value = '';
+          document.getElementById('newJabatan').value = '';
+          document.getElementById('newKodeUnik').value = '';
+        } catch (err) {
+          alert("Gagal menyimpan ke Firebase: " + err.message);
+        }
       } else if (pass !== null) {
         alert("Password Salah!");
       }
-    };
+    }
 
-    window.hapusKaryawan = function(firebaseId) {
+    // -------------------------------------------------------------------
+    // 4. HAPUS KARYAWAN DARI FIREBASE
+    // -------------------------------------------------------------------
+    async function hapusKaryawan(docId) {
       const pass = prompt("Masukkan Password Hapus Karyawan:\n(Password: delet@1234#)");
       if (pass === "delet@1234#") {
-        remove(ref(db, `karyawan/${firebaseId}`));
+        try {
+          await db.collection('karyawan').doc(docId).delete();
+          alert("Data karyawan berhasil dihapus dari Firebase!");
+        } catch (err) {
+          alert("Gagal menghapus data dari Firebase: " + err.message);
+        }
       } else if (pass !== null) {
         alert("Password Salah!");
       }
-    };
+    }
 
     function renderTabelKaryawan() {
       const tbody = document.getElementById('tabelKaryawan');
       tbody.innerHTML = '';
       daftarKaryawan.forEach((item, index) => {
-        const statusWajah = item.faceDescriptor 
+        const statusWajah = (item.faceDescriptor && item.faceDescriptor.length > 0)
           ? '<span style="color: green; font-weight: bold;">✓ Terverifikasi AI</span>' 
           : '<span style="color: orange; font-weight: bold;">⚠️ Belum Rekam</span>';
 
@@ -377,21 +412,21 @@
           <td>${item.jabatan}</td>
           <td><code>${item.kodeUnik}</code></td>
           <td>${statusWajah}</td>
-          <td><button class="btn btn-danger" onclick="hapusKaryawan('${item.firebaseId}')">Hapus</button></td>
+          <td><button class="btn btn-danger" onclick="hapusKaryawan('${item.docId}')">Hapus</button></td>
         `;
         tbody.appendChild(tr);
       });
     }
 
-    window.ubahLogo = function() {
+    function ubahLogo() {
       const pass = prompt("Masukkan Password Admin Logo:\n(Password: logo@1234#)");
       if (pass === "logo@1234#") {
         const urlBaru = prompt("Masukkan URL Gambar Logo Baru:");
         if (urlBaru) document.getElementById('logo-img').src = urlBaru;
       } else if (pass !== null) alert("Password Salah!");
-    };
+    }
 
-    window.ubahBackdrop = function() {
+    function ubahBackdrop() {
       const pass = prompt("Masukkan Password Admin Backdrop:\n(Password: bsckdrop@1234#)");
       if (pass === "bsckdrop@1234#") {
         const urlBg = prompt("Masukkan URL Gambar Backdrop / Kode Warna Hex:");
@@ -404,21 +439,21 @@
           }
         }
       } else if (pass !== null) alert("Password Salah!");
-    };
+    }
 
-    window.eksporExcel = function() {
+    function eksporExcel() {
       const pass = prompt("Masukkan Password Ekspor Excel:\n(Password: abseb@1234#)");
       if (pass === "abseb@1234#") {
-        const wsData = [["ID", "Nama Karyawan", "NIK", "Jabatan", "Kode Unik", "Total Kehadiran (Hari)"]];
-        daftarKaryawan.forEach(k => wsData.push([k.firebaseId, k.nama, k.nik, k.jabatan, k.kodeUnik, k.totalHadir]));
+        const wsData = [["Nama Karyawan", "NIK", "Jabatan", "Kode Unik", "Total Kehadiran (Hari)"]];
+        daftarKaryawan.forEach(k => wsData.push([k.nama, k.nik, k.jabatan, k.kodeUnik, k.totalHadir || 0]));
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Rekap Presensi");
         XLSX.writeFile(wb, "Rekap_Presensi_Karyawan.xlsx");
       } else if (pass !== null) alert("Password Salah!");
-    };
+    }
 
-    window.verifikasiKodeUnik = function() {
+    function verifikasiKodeUnik() {
       const kode = document.getElementById('inputKodeUnik').value.trim();
       const ditemukan = daftarKaryawan.find(k => k.kodeUnik === kode);
       if (ditemukan) {
@@ -430,18 +465,20 @@
       } else {
         alert("Kode Unik tidak terdaftar!");
       }
-    };
+    }
 
-    // Verifikasi Absen & Update Data ke Firebase Realtime Database
-    window.prosesAbsen = async function() {
+    // -------------------------------------------------------------------
+    // 5. PROSES ABSEN & UPDATE HADIR + LOKASI KE FIREBASE
+    // -------------------------------------------------------------------
+    async function prosesAbsen() {
       if (!karyawanAktif) return;
       if (!isAiLoaded) return alert("AI Wajah belum siap, mohon tunggu sebentar!");
 
       const infoDiv = document.getElementById('infoLokasi');
-      infoDiv.innerHTML = "<em>Sedang memindaian wajah & mengukur lokasi GPS...</em>";
+      infoDiv.innerHTML = "<em>Sedang memindai wajah & mengukur lokasi GPS...</em>";
 
       if (!karyawanAktif.faceDescriptor) {
-        alert("Karyawan belum memiliki data sampel foto wajah master!");
+        alert("Karyawan belum memiliki data sampel foto wajah master! Hubungi Admin.");
         infoDiv.innerHTML = "<span style='color:red;'>Gagal: Data Wajah Master Tidak Ada.</span>";
         return;
       }
@@ -470,14 +507,21 @@
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (position) => {
-            const newTotalHadir = (karyawanAktif.totalHadir || 0) + 1;
-            
-            // Sync / Simpan perubahan ke Firebase Realtime Database
-            await set(ref(db, `karyawan/${karyawanAktif.firebaseId}/totalHadir`), newTotalHadir);
+            try {
+              // Update langsung ke Firebase
+              await db.collection('karyawan').doc(karyawanAktif.docId).update({
+                totalHadir: firebase.firestore.FieldValue.increment(1),
+                lastLatitude: position.coords.latitude,
+                lastLongitude: position.coords.longitude,
+                lastAbsen: new Date()
+              });
 
-            const text = `✓ Presensi Berhasil (${karyawanAktif.nama}). Lat: ${position.coords.latitude.toFixed(5)}, Lng: ${position.coords.longitude.toFixed(5)}`;
-            infoDiv.innerHTML = text;
-            alert(`Presensi Berhasil disingkronkan ke Firebase untuk ${karyawanAktif.nama}`);
+              const text = `✓ Presensi Berhasil (${karyawanAktif.nama}). Lat: ${position.coords.latitude.toFixed(5)}, Lng:${position.coords.longitude.toFixed(5)}`;
+              infoDiv.innerHTML = text;
+              alert(`Presensi Berhasil untuk ${karyawanAktif.nama}`);
+            } catch (err) {
+              alert("Gagal memperbarui ke Firebase: " + err.message);
+            }
           },
           () => { infoDiv.innerHTML = "Akses lokasi/GPS ditolak."; },
           { enableHighAccuracy: true }
@@ -485,18 +529,14 @@
       } else {
         alert("Geolokalisi tidak didukung browser ini.");
       }
-    };
+    }
 
     function renderGrafik() {
-      const ctxPieElem = document.getElementById('pieChart');
-      const ctxBarElem = document.getElementById('barChart');
-      if (!ctxPieElem || !ctxBarElem) return;
-
       if (chartPie) chartPie.destroy();
       if (chartBar) chartBar.destroy();
 
-      const ctxPie = ctxPieElem.getContext('2d');
-      const ctxBar = ctxBarElem.getContext('2d');
+      const ctxPie = document.getElementById('pieChart').getContext('2d');
+      const ctxBar = document.getElementById('barChart').getContext('2d');
 
       const labels = daftarKaryawan.map(k => k.nama);
       const dataHadir = daftarKaryawan.map(k => k.totalHadir || 0);
@@ -519,7 +559,11 @@
       });
     }
 
-    window.onload = initFaceAI;
+    // Jalankan pertama kali
+    window.onload = function() {
+      initFaceAI();
+      muatDataFirebase();
+    };
   </script>
 </body>
 </html>
