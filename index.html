@@ -95,12 +95,12 @@
 
     <!-- Header Logo & Bismillah -->
     <div class="header-section">
-      <img id="logo-img" src="https://via.placeholder.com/150x60?text=LOGO+KANTOR" alt="Logo Perusahaan"><br>
+      <img id="logo-img" src="logo.png" alt="Logo Perusahaan"><br>
       <div class="header-arabic">بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ</div>
       <div class="sub-title">"Awali setiap pekerjaanmu dengan Bismillah"</div>
     </div>
 
-    <!-- ================= HALAMAN UTAMA KARYAWAN (HP) ================= -->
+    <!-- HALAMAN UTAMA KARYAWAN -->
     <div id="page-karyawan">
       <div class="card" id="sec-kode-unik">
         <h3 style="color: #0d47a1;">Validasi Akses Presensi Karyawan</h3>
@@ -123,20 +123,19 @@
       </div>
     </div>
 
-    <!-- ================= DASBOR ADMIN ================= -->
+    <!-- DASBOR ADMIN -->
     <div id="page-admin" style="display: none;">
       <div class="card">
         <h2 style="color: #0d47a1; margin-top: 0;">Panel Kontrol Dasbor Admin</h2>
         
         <div style="margin-bottom: 20px;">
           <h4>Pengaturan Tampilan:</h4>
-          <button class="btn btn-secondary" onclick="ubahLogo()">Ganti Logo (Password: logo@1234#)</button>
-          <button class="btn btn-secondary" onclick="ubahBackdrop()">Ganti Backdrop (Password: bsckdrop@1234#)</button>
+          <button class="btn btn-secondary" onclick="ubahLogo()">Ganti Logo Permanen (Password: logo@1234#)</button>
         </div>
 
         <hr>
 
-        <!-- Form Tambah Karyawan Baru & Rekam Wajah -->
+        <!-- Form Tambah Karyawan Baru -->
         <div style="margin-bottom: 20px;">
           <h4>Tambah Karyawan Baru & Registrasi Wajah (Password: daftar@1234#)</h4>
           <input type="text" id="newNama" placeholder="Nama Karyawan"><br>
@@ -203,21 +202,20 @@
 
   <script>
     // -------------------------------------------------------------------
-    // 1. KONFIGURASI FIREBASE (MASUKKAN KUNCI FIREBASE ANDA DI SINI)
+    // 1. KONFIGURASI FIREBASE ANDA
     // -------------------------------------------------------------------
-   const firebaseConfig = {
-  apiKey: "AIzaSyD8x9XxxxExampleKey123", // GANTI dengan API Key asli dari Firebase Anda
-  authDomain: "absensi-karyawan-df06f.firebaseapp.com",
-  projectId: "absensi-karyawan-df06f",
-  storageBucket: "absensi-karyawan-df06f.appspot.com",
-  messagingSenderId: "1234567890", // GANTI dengan Sender ID asli dari Firebase Anda
-  appId: "1:1234567890:web:abc123def456" // GANTI dengan App ID asli dari Firebase Anda
-};
+    const firebaseConfig = {
+      apiKey: "AIzaSyD8x9XxxxExampleKey123", // Isikan API Key asli Anda
+      authDomain: "absensi-karyawan-df06f.firebaseapp.com",
+      projectId: "absensi-karyawan-df06f",
+      storageBucket: "absensi-karyawan-df06f.appspot.com",
+      messagingSenderId: "1234567890", // Isikan Sender ID asli Anda
+      appId: "1:1234567890:web:abc123def456" // Isikan App ID asli Anda
+    };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Variable global
     let daftarKaryawan = [];
     let karyawanAktif = null;
     let chartPie = null;
@@ -225,30 +223,28 @@
     let currentStream = null;
     let isAiLoaded = false;
 
-    // -------------------------------------------------------------------
-    // 2. MEMBACA DATA REALTIME DARI FIREBASE
-    // -------------------------------------------------------------------
+    // Membaca Konfigurasi Logo & Data dari Firebase
     function muatDataFirebase() {
+      // Load URL Logo dari Firebase Firestore
+      db.collection('settings').doc('app_config').onSnapshot((doc) => {
+        if (doc.exists && doc.data().logoUrl) {
+          document.getElementById('logo-img').src = doc.data().logoUrl;
+        }
+      });
+
+      // Load Data Karyawan Realtime
       db.collection('karyawan').onSnapshot((snapshot) => {
         daftarKaryawan = [];
         snapshot.forEach((doc) => {
-          const data = doc.data();
-          daftarKaryawan.push({
-            docId: doc.id,
-            ...data
-          });
+          daftarKaryawan.push({ docId: doc.id, ...doc.data() });
         });
-        
         renderTabelKaryawan();
         if (document.getElementById('page-admin').style.display !== 'none') {
           renderGrafik();
         }
-      }, (error) => {
-        console.error("Gagal mengambil data dari Firebase: ", error);
       });
     }
 
-    // Load Model AI Verifikasi Wajah saat web terbuka
     async function initFaceAI() {
       const aiStatus = document.getElementById('aiStatus');
       try {
@@ -266,26 +262,17 @@
       }
     }
 
-    // Fungsi Akses Kamera
     async function startCamera(elementId) {
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
       }
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert("Browser Anda memblokir kamera. Pastikan memberikan izin lokasi & kamera.");
-        return;
-      }
-
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         currentStream = stream;
         const videoElem = document.getElementById(elementId);
-        if (videoElem) {
-          videoElem.srcObject = stream;
-        }
+        if (videoElem) videoElem.srcObject = stream;
       } catch (err) {
-        alert("Akses kamera ditolak. Silakan periksa izin kamera di pengaturan browser Anda.");
+        alert("Akses kamera ditolak/tidak tersedia.");
       }
     }
 
@@ -312,7 +299,7 @@
         renderGrafik();
         startCamera('webcamAdmin');
       } else {
-        alert("Password Admin Salah! Gunakan: admin@1234#");
+        alert("Password Admin Salah!");
       }
     }
 
@@ -324,86 +311,68 @@
       document.getElementById('btn-logout-admin').style.display = 'none';
     }
 
-    // -------------------------------------------------------------------
-    // 3. TAMBAH KARYAWAN BARU & SIMPAN KE FIREBASE
-    // -------------------------------------------------------------------
-    async function tambahKaryawan() {
-      if (!isAiLoaded) return alert("Tunggu hingga AI Wajah selesai dimuat!");
+    // SIMPAN LOGO PERMANEN KE FIREBASE
+    async function ubahLogo() {
+      const pass = prompt("Masukkan Password Admin Logo:\n(Password: logo@1234#)");
+      if (pass === "logo@1234#") {
+        const urlBaru = prompt("Masukkan Link URL Logo Baru (contoh: https://domain.com/logo.png):");
+        if (urlBaru) {
+          try {
+            await db.collection('settings').doc('app_config').set({ logoUrl: urlBaru }, { merge: true });
+            alert("Logo berhasil diperbarui dan disimpan secara permanen di Firebase!");
+          } catch (err) {
+            alert("Gagal menyimpan logo: " + err.message);
+          }
+        }
+      } else if (pass !== null) alert("Password Salah!");
+    }
 
+    async function tambahKaryawan() {
+      if (!isAiLoaded) return alert("Tunggu AI Wajah selesai dimuat!");
       const nama = document.getElementById('newNama').value.trim();
       const nik = document.getElementById('newNik').value.trim();
       const jabatan = document.getElementById('newJabatan').value.trim();
       const kodeUnik = document.getElementById('newKodeUnik').value.trim();
 
-      if (!nama || !nik || !jabatan || !kodeUnik) {
-        alert("Lengkapi semua kolom data karyawan!");
-        return;
-      }
+      if (!nama || !nik || !jabatan || !kodeUnik) return alert("Lengkapi semua data!");
 
       const pass = prompt("Masukkan Password Tambah Karyawan:\n(Password: daftar@1234#)");
       if (pass === "daftar@1234#") {
         const videoElem = document.getElementById('webcamAdmin');
-        
-        const detection = await faceapi.detectSingleFace(videoElem)
-          .withFaceLandmarks()
-          .withFaceDescriptor();
+        const detection = await faceapi.detectSingleFace(videoElem).withFaceLandmarks().withFaceDescriptor();
 
-        if (!detection) {
-          alert("Wajah tidak terdeteksi! Posisikan wajah dengan jelas di depan kamera.");
-          return;
-        }
-
-        const dataBaru = {
-          nama: nama,
-          nik: nik,
-          jabatan: jabatan,
-          kodeUnik: kodeUnik,
-          totalHadir: 0,
-          faceDescriptor: Array.from(detection.descriptor),
-          createdAt: new Date()
-        };
+        if (!detection) return alert("Wajah tidak terdeteksi di kamera!");
 
         try {
-          await db.collection('karyawan').add(dataBaru);
-          alert(`Karyawan ${nama} & data foto AI wajah berhasil disimpan ke Firebase!`);
-          
+          await db.collection('karyawan').add({
+            nama, nik, jabatan, kodeUnik,
+            totalHadir: 0,
+            faceDescriptor: Array.from(detection.descriptor),
+            createdAt: new Date()
+          });
+          alert(`Karyawan ${nama} berhasil disimpan ke Firebase!`);
           document.getElementById('newNama').value = '';
           document.getElementById('newNik').value = '';
           document.getElementById('newJabatan').value = '';
           document.getElementById('newKodeUnik').value = '';
-        } catch (err) {
-          alert("Gagal menyimpan ke Firebase: " + err.message);
-        }
-      } else if (pass !== null) {
-        alert("Password Salah!");
-      }
+        } catch (err) { alert("Gagal menyimpan data: " + err.message); }
+      } else if (pass !== null) alert("Password Salah!");
     }
 
-    // -------------------------------------------------------------------
-    // 4. HAPUS KARYAWAN DARI FIREBASE
-    // -------------------------------------------------------------------
     async function hapusKaryawan(docId) {
       const pass = prompt("Masukkan Password Hapus Karyawan:\n(Password: delet@1234#)");
       if (pass === "delet@1234#") {
         try {
           await db.collection('karyawan').doc(docId).delete();
-          alert("Data karyawan berhasil dihapus dari Firebase!");
-        } catch (err) {
-          alert("Gagal menghapus data dari Firebase: " + err.message);
-        }
-      } else if (pass !== null) {
-        alert("Password Salah!");
-      }
+          alert("Data karyawan dihapus!");
+        } catch (err) { alert("Gagal menghapus: " + err.message); }
+      } else if (pass !== null) alert("Password Salah!");
     }
 
     function renderTabelKaryawan() {
       const tbody = document.getElementById('tabelKaryawan');
       tbody.innerHTML = '';
       daftarKaryawan.forEach((item, index) => {
-        const statusWajah = (item.faceDescriptor && item.faceDescriptor.length > 0)
-          ? '<span style="color: green; font-weight: bold;">✓ Terverifikasi AI</span>' 
-          : '<span style="color: orange; font-weight: bold;">⚠️ Belum Rekam</span>';
-
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${index + 1}</td>
@@ -411,40 +380,17 @@
           <td>${item.nik}</td>
           <td>${item.jabatan}</td>
           <td><code>${item.kodeUnik}</code></td>
-          <td>${statusWajah}</td>
+          <td><span style="color: green; font-weight: bold;">✓ Terverifikasi AI</span></td>
           <td><button class="btn btn-danger" onclick="hapusKaryawan('${item.docId}')">Hapus</button></td>
         `;
         tbody.appendChild(tr);
       });
     }
 
-    function ubahLogo() {
-      const pass = prompt("Masukkan Password Admin Logo:\n(Password: logo@1234#)");
-      if (pass === "logo@1234#") {
-        const urlBaru = prompt("Masukkan URL Gambar Logo Baru:");
-        if (urlBaru) document.getElementById('logo-img').src = urlBaru;
-      } else if (pass !== null) alert("Password Salah!");
-    }
-
-    function ubahBackdrop() {
-      const pass = prompt("Masukkan Password Admin Backdrop:\n(Password: bsckdrop@1234#)");
-      if (pass === "bsckdrop@1234#") {
-        const urlBg = prompt("Masukkan URL Gambar Backdrop / Kode Warna Hex:");
-        if (urlBg) {
-          if (urlBg.startsWith("http") || urlBg.startsWith("data:")) {
-            document.getElementById('app-backdrop').style.backgroundImage = `url('${urlBg}')`;
-          } else {
-            document.getElementById('app-backdrop').style.backgroundImage = 'none';
-            document.getElementById('app-backdrop').style.backgroundColor = urlBg;
-          }
-        }
-      } else if (pass !== null) alert("Password Salah!");
-    }
-
     function eksporExcel() {
       const pass = prompt("Masukkan Password Ekspor Excel:\n(Password: abseb@1234#)");
       if (pass === "abseb@1234#") {
-        const wsData = [["Nama Karyawan", "NIK", "Jabatan", "Kode Unik", "Total Kehadiran (Hari)"]];
+        const wsData = [["Nama Karyawan", "NIK", "Jabatan", "Kode Unik", "Total Kehadiran"]];
         daftarKaryawan.forEach(k => wsData.push([k.nama, k.nik, k.jabatan, k.kodeUnik, k.totalHadir || 0]));
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
@@ -467,99 +413,62 @@
       }
     }
 
-    // -------------------------------------------------------------------
-    // 5. PROSES ABSEN & UPDATE HADIR + LOKASI KE FIREBASE
-    // -------------------------------------------------------------------
     async function prosesAbsen() {
-      if (!karyawanAktif) return;
-      if (!isAiLoaded) return alert("AI Wajah belum siap, mohon tunggu sebentar!");
-
+      if (!karyawanAktif || !isAiLoaded) return;
       const infoDiv = document.getElementById('infoLokasi');
-      infoDiv.innerHTML = "<em>Sedang memindai wajah & mengukur lokasi GPS...</em>";
-
-      if (!karyawanAktif.faceDescriptor) {
-        alert("Karyawan belum memiliki data sampel foto wajah master! Hubungi Admin.");
-        infoDiv.innerHTML = "<span style='color:red;'>Gagal: Data Wajah Master Tidak Ada.</span>";
-        return;
-      }
+      infoDiv.innerHTML = "<em>Memindai wajah & lokasi...</em>";
 
       const videoElem = document.getElementById('webcamKaryawan');
-      const currentDetection = await faceapi.detectSingleFace(videoElem)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+      const currentDetection = await faceapi.detectSingleFace(videoElem).withFaceLandmarks().withFaceDescriptor();
 
       if (!currentDetection) {
-        alert("Wajah tidak terdeteksi! Pastikan wajah terlihat jelas di layar.");
         infoDiv.innerHTML = "<span style='color:red;'>Wajah Tidak Terdeteksi!</span>";
         return;
       }
 
       const masterDescriptor = new Float32Array(karyawanAktif.faceDescriptor);
       const distance = faceapi.euclideanDistance(masterDescriptor, currentDetection.descriptor);
-      const THRESHOLD = 0.52;
 
-      if (distance > THRESHOLD) {
-        alert(`❌ Verifikasi Wajah Gagal! Wajah tidak cocok dengan data ${karyawanAktif.nama}.`);
+      if (distance > 0.52) {
         infoDiv.innerHTML = "<span style='color:red;'>❌ Wajah Tidak Cocok!</span>";
         return;
       }
 
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            try {
-              // Update langsung ke Firebase
-              await db.collection('karyawan').doc(karyawanAktif.docId).update({
-                totalHadir: firebase.firestore.FieldValue.increment(1),
-                lastLatitude: position.coords.latitude,
-                lastLongitude: position.coords.longitude,
-                lastAbsen: new Date()
-              });
-
-              const text = `✓ Presensi Berhasil (${karyawanAktif.nama}). Lat: ${position.coords.latitude.toFixed(5)}, Lng:${position.coords.longitude.toFixed(5)}`;
-              infoDiv.innerHTML = text;
-              alert(`Presensi Berhasil untuk ${karyawanAktif.nama}`);
-            } catch (err) {
-              alert("Gagal memperbarui ke Firebase: " + err.message);
-            }
-          },
-          () => { infoDiv.innerHTML = "Akses lokasi/GPS ditolak."; },
-          { enableHighAccuracy: true }
-        );
-      } else {
-        alert("Geolokalisi tidak didukung browser ini.");
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          try {
+            await db.collection('karyawan').doc(karyawanAktif.docId).update({
+              totalHadir: firebase.firestore.FieldValue.increment(1),
+              lastLatitude: position.coords.latitude,
+              lastLongitude: position.coords.longitude,
+              lastAbsen: new Date()
+            });
+            infoDiv.innerHTML = `✓ Presensi Berhasil (${karyawanAktif.nama})`;
+            alert(`Presensi Berhasil untuk ${karyawanAktif.nama}`);
+          } catch (err) { alert("Gagal update ke Firebase: " + err.message); }
+        });
       }
     }
 
     function renderGrafik() {
       if (chartPie) chartPie.destroy();
       if (chartBar) chartBar.destroy();
-
       const ctxPie = document.getElementById('pieChart').getContext('2d');
       const ctxBar = document.getElementById('barChart').getContext('2d');
-
       const labels = daftarKaryawan.map(k => k.nama);
       const dataHadir = daftarKaryawan.map(k => k.totalHadir || 0);
 
       chartPie = new Chart(ctxPie, {
         type: 'pie',
-        data: {
-          labels: labels,
-          datasets: [{ data: dataHadir, backgroundColor: ['#1976d2', '#0288d1', '#2e7d32', '#f57c00', '#616161'] }]
-        }
+        data: { labels, datasets: [{ data: dataHadir, backgroundColor: ['#1976d2', '#0288d1', '#2e7d32', '#f57c00', '#616161'] }] }
       });
-
       chartBar = new Chart(ctxBar, {
         type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{ label: 'Hari Hadir', data: dataHadir, backgroundColor: '#1976d2' }]
-        },
+        data: { labels, datasets: [{ label: 'Hari Hadir', data: dataHadir, backgroundColor: '#1976d2' }] },
         options: { scales: { y: { beginAtZero: true } } }
       });
     }
 
-    // Jalankan pertama kali
     window.onload = function() {
       initFaceAI();
       muatDataFirebase();
