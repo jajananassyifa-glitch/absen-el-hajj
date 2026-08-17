@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aplikasi Presensi Karyawan & Dasbor Admin</title>
+  
+  <!-- Chart.js & SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <!-- Library Face API untuk Pemindaian AI Wajah -->
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #ffffff;
+      background-image: linear-gradient(135deg, #e3f2fd 0%, #90caf9 100%);
+      background-size: cover; background-attachment: fixed;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    }
+    .container {
+      background-color: #ffffff; border-top: 6px solid #0d47a1;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15); border-radius: 12px;
+      width: 90%; max-width: 950px; margin: 30px auto; padding: 25px; position: relative;
+    }
+    .top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 15px; background: #e3f2fd; padding: 10px 15px; border-radius: 8px;
+    }
+    .header-section { text-align: center; margin-bottom: 20px; }
+    #logo-img { max-width: 140px; height: auto; margin-bottom: 10px; }
+    .header-arabic { font-size: 26px; font-family: 'Amiri', 'Traditional Arabic', serif; color: #0d47a1; margin: 10px 0; }
+    .sub-title { font-style: italic; color: #555; margin-bottom: 20px; }
+    .card { background-color: #f8f9fa; border: 1px solid #e0e0e0; border-left: 5px solid #1976d2; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .btn { padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; margin: 5px 0; }
+    .btn-primary { background-color: #1976d2; color: white; }
+    .btn-primary:hover { background-color: #1565c0; }
+    .btn-admin { background-color: #0d47a1; color: white; }
+    .btn-admin:hover { background-color: #002171; }
+    .btn-danger { background-color: #d32f2f; color: white; }
+    .btn-danger:hover { background-color: #9a0007; }
+    .btn-success { background-color: #2e7d32; color: white; }
+    .btn-success:hover { background-color: #1b5e20; }
+    .btn-secondary { background-color: #616161; color: white; }
+    .btn-secondary:hover { background-color: #424242; }
+    input[type="password"], input[type="text"] { width: 100%; max-width: 320px; padding: 10px; border: 1px solid #ced4da; border-radius: 6px; margin-bottom: 10px; }
+    .webcam-box { width: 100%; max-width: 380px; height: 280px; background-color: #111; border-radius: 8px; margin: 15px auto; display: flex; justify-content: center; align-items: center; color: #fff; overflow: hidden; }
+    video { width: 100%; height: 100%; object-fit: cover; }
+    .charts-wrapper { display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-around; margin-top: 15px; }
+    .chart-box { flex: 1; min-width: 280px; max-width: 400px; background: #ffffff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #ffffff; }
+    th, td { border: 1px solid #dee2e6; padding: 10px; text-align: left; }
+    th { background-color: #1976d2; color: white; }
+    .status-text { font-size: 14px; font-weight: bold; color: #2e7d32; }
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 9999; }
+    .modal-box { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 400px; text-align: center; }
+  </style>
+</head>
+<body id="app-backdrop">
+
+  <!-- Modal Login Admin -->
+  <div id="modalAdmin" class="modal-overlay">
+    <div class="modal-box">
+      <h3 style="margin-top:0; color:#0d47a1;">Masuk Dasbor Admin</h3>
+      <p>Masukkan Password Admin:</p>
+      <input type="password" id="passAdminInput" placeholder="Password Admin"><br>
+      <button class="btn btn-primary" onclick="submitLoginAdmin()">Masuk</button>
+      <button class="btn btn-secondary" onclick="tutupModalAdmin()">Batal</button>
+    </div>
+  </div>
+
+  <div class="container">
+    
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <span style="font-weight: bold; color: #0d47a1;">Aplikasi Presensi Karyawan</span>
+      <div>
+        <button id="btn-login-admin" class="btn btn-admin" onclick="bukaModalAdmin()">🔑 Buka Dasbor Admin</button>
+        <button id="btn-logout-admin" class="btn btn-danger" onclick="logoutAdmin()" style="display: none;">🚪 Keluar Admin</button>
+      </div>
+    </div>
+
+    <!-- Status AI Wajah -->
+    <div id="aiStatus" style="background:#fff3cd; color:#856404; padding:8px 12px; border-radius:6px; margin-bottom:15px; text-align:center; font-size:14px;">
+      ⏳ Memuat AI Verifikasi Wajah... Mohon tunggu.
+    </div>
+
+    <!-- Header Logo & Bismillah -->
+    <div class="header-section">
+      <img id="logo-img" src="https://via.placeholder.com/150x60?text=LOGO+KANTOR" alt="Logo Perusahaan"><br>
+      <div class="header-arabic">بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ</div>
+      <div class="sub-title">"Awali setiap pekerjaanmu dengan Bismillah"</div>
+    </div>
+
+    <!-- ================= HALAMAN UTAMA KARYAWAN (HP) ================= -->
+    <div id="page-karyawan">
+      <div class="card" id="sec-kode-unik">
+        <h3 style="color: #0d47a1;">Validasi Akses Presensi Karyawan</h3>
+        <p>Masukkan Kode Unik Anda sebelum melakukan presensi:</p>
+        <input type="password" id="inputKodeUnik" placeholder="Masukkan Kode Unik Karyawan">
+        <br>
+        <button class="btn btn-primary" onclick="verifikasiKodeUnik()">Masuk Absensi</button>
+      </div>
+
+      <div class="card" id="sec-absen" style="display: none;">
+        <h3 style="color: #0d47a1;">Pemindaian Verifikasi Wajah & Lokasi</h3>
+        <p>Karyawan Teridentifikasi: <strong id="labelNamaKaryawan">-</strong></p>
+        
+        <div class="webcam-box">
+          <video id="webcamKaryawan" autoplay muted playsinline></video>
+        </div>
+
+        <button class="btn btn-success" id="btnProsesAbsen" onclick="prosesAbsen()">Verifikasi Wajah & Absen Masuk</button>
+        <div id="infoLokasi" class="status-text" style="margin-top: 10px;"></div>
+      </div>
+    </div>
+
+    <!-- ================= DASBOR ADMIN ================= -->
+    <div id="page-admin" style="display: none;">
+      <div class="card">
+        <h2 style="color: #0d47a1; margin-top: 0;">Panel Kontrol Dasbor Admin</h2>
+        
+        <div style="margin-bottom: 20px;">
+          <h4>Pengaturan Tampilan:</h4>
+          <button class="btn btn-secondary" onclick="ubahLogo()">Ganti Logo (Password: logo@1234#)</button>
+          <button class="btn btn-secondary" onclick="ubahBackdrop()">Ganti Backdrop (Password: bsckdrop@1234#)</button>
+        </div>
+
+        <hr>
+
+        <!-- Form Tambah Karyawan Baru & Rekam Wajah -->
+        <div style="margin-bottom: 20px;">
+          <h4>Tambah Karyawan Baru & Registrasi Wajah (Password: daftar@1234#)</h4>
+          <input type="text" id="newNama" placeholder="Nama Karyawan"><br>
+          <input type="text" id="newNik" placeholder="NIK Karyawan"><br>
+          <input type="text" id="newJabatan" placeholder="Jabatan"><br>
+          <input type="text" id="newKodeUnik" placeholder="Kode Unik Karyawan"><br>
+          
+          <div style="margin-top: 10px;">
+            <p style="margin-bottom: 5px; font-weight: bold;">Arahkan Wajah Karyawan ke Kamera:</p>
+            <div class="webcam-box">
+              <video id="webcamAdmin" autoplay muted playsinline></video>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="btnTambahKaryawan" onclick="tambahKaryawan()">+ Registrasi Wajah & Tambah Karyawan</button>
+        </div>
+
+        <hr>
+
+        <!-- Tabel Karyawan -->
+        <div style="margin-bottom: 20px;">
+          <h4>Daftar Nama Karyawan Terdaftar</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Nama Karyawan</th>
+                <th>NIK</th>
+                <th>Jabatan</th>
+                <th>Kode Unik</th>
+                <th>Status Wajah</th>
+                <th>Aksi (Password: delet@1234#)</th>
+              </tr>
+            </thead>
+            <tbody id="tabelKaryawan"></tbody>
+          </table>
+        </div>
+
+        <hr>
+
+        <div style="margin-bottom: 20px;">
+          <h4>Rekap Data Presensi:</h4>
+          <button class="btn btn-success" onclick="eksporExcel()">Unduh Rekap Excel (Password: abseb@1234#)</button>
+        </div>
+
+        <hr>
+
+        <h4>Grafik Statistik Karyawan Terrajin</h4>
+        <div class="charts-wrapper">
+          <div class="chart-box">
+            <h5 style="text-align:center;">Persentase Kehadiran</h5>
+            <canvas id="pieChart"></canvas>
+          </div>
+          <div class="chart-box">
+            <h5 style="text-align:center;">Total Kehadiran (Hari)</h5>
+            <canvas id="barChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let daftarKaryawan = [
+      { id: 1, nama: 'Ahmad', nik: '1001', jabatan: 'Staff IT', kodeUnik: 'AHM123', totalHadir: 22, faceDescriptor: null },
+      { id: 2, nama: 'Budi', nik: '1002', jabatan: 'Marketing', kodeUnik: 'BUD123', totalHadir: 20, faceDescriptor: null },
+      { id: 3, nama: 'Siti', nik: '1003', jabatan: 'HRD', kodeUnik: 'SIT123', totalHadir: 25, faceDescriptor: null }
+    ];
+
+    let karyawanAktif = null;
+    let chartPie = null;
+    let chartBar = null;
+    let currentStream = null;
+    let isAiLoaded = false;
+
+    // Load Model AI Verifikasi Wajah saat web terbuka
+    async function initFaceAI() {
+      const aiStatus = document.getElementById('aiStatus');
+      try {
+        const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        
+        isAiLoaded = true;
+        aiStatus.style.background = "#d4edda";
+        aiStatus.style.color = "#155724";
+        aiStatus.innerText = "✅ AI Verifikasi Wajah Siap!";
+      } catch (err) {
+        aiStatus.innerText = "❌ Gagal memuat AI Wajah: " + err.message;
+      }
+    }
+
+    // Fungsi Kamera Ditingkatkan untuk Akses Laptop & HP
+    async function startCamera(elementId) {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Browser Anda memblokir kamera. Pastikan memberikan izin lokasi & kamera, serta menggunakan jaringan aman (HTTPS/Localhost).");
+        return;
+      }
+
+      try {
+        // Mencoba mengaktifkan kamera (default mode)
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        currentStream = stream;
+        const videoElem = document.getElementById(elementId);
+        if (videoElem) {
+          videoElem.srcObject = stream;
+        }
+      } catch (err) {
+        alert("Akses kamera ditolak. Silakan periksa izin kamera di pengaturan browser Anda.");
+      }
+    }
+
+    function bukaModalAdmin() {
+      document.getElementById('modalAdmin').style.display = 'flex';
+      document.getElementById('passAdminInput').value = '';
+      document.getElementById('passAdminInput').focus();
+    }
+
+    function tutupModalAdmin() {
+      document.getElementById('modalAdmin').style.display = 'none';
+    }
+
+    function submitLoginAdmin() {
+      const pass = document.getElementById('passAdminInput').value;
+      if (pass === "admin@1234#") {
+        tutupModalAdmin();
+        document.getElementById('page-karyawan').style.display = 'none';
+        document.getElementById('page-admin').style.display = 'block';
+        document.getElementById('btn-login-admin').style.display = 'none';
+        document.getElementById('btn-logout-admin').style.display = 'inline-block';
+
+        renderTabelKaryawan();
+        renderGrafik();
+        startCamera('webcamAdmin');
+      } else {
+        alert("Password Admin Salah! Gunakan: admin@1234#");
+      }
+    }
+
+    function logoutAdmin() {
+      if (currentStream) currentStream.getTracks().forEach(track => track.stop());
+      document.getElementById('page-karyawan').style.display = 'block';
+      document.getElementById('page-admin').style.display = 'none';
+      document.getElementById('btn-login-admin').style.display = 'inline-block';
+      document.getElementById('btn-logout-admin').style.display = 'none';
+    }
+
+    // Tambah Karyawan Baru & Ekstraksi Fitur Wajah Master
+    async function tambahKaryawan() {
+      if (!isAiLoaded) return alert("Tunggu hingga AI Wajah selesai dimuat!");
+
+      const nama = document.getElementById('newNama').value.trim();
+      const nik = document.getElementById('newNik').value.trim();
+      const jabatan = document.getElementById('newJabatan').value.trim();
+      const kodeUnik = document.getElementById('newKodeUnik').value.trim();
+
+      if (!nama || !nik || !jabatan || !kodeUnik) {
+        alert("Lengkapi semua kolom data karyawan!");
+        return;
+      }
+
+      const pass = prompt("Masukkan Password Tambah Karyawan:\n(Password: daftar@1234#)");
+      if (pass === "daftar@1234#") {
+        const videoElem = document.getElementById('webcamAdmin');
+        
+        // Pindai & Ambil Descriptor Wajah Karyawan Baru
+        const detection = await faceapi.detectSingleFace(videoElem)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (!detection) {
+          alert("Wajah tidak terdeteksi! Posisikan wajah dengan jelas di depan kamera.");
+          return;
+        }
+
+        const idBaru = daftarKaryawan.length > 0 ? daftarKaryawan[daftarKaryawan.length - 1].id + 1 : 1;
+        
+        daftarKaryawan.push({ 
+          id: idBaru, 
+          nama, 
+          nik, 
+          jabatan, 
+          kodeUnik, 
+          totalHadir: 0, 
+          faceDescriptor: Array.from(detection.descriptor)
+        });
+
+        alert(`Karyawan ${nama} & data foto AI wajah berhasil terdaftar!`);
+        document.getElementById('newNama').value = '';
+        document.getElementById('newNik').value = '';
+        document.getElementById('newJabatan').value = '';
+        document.getElementById('newKodeUnik').value = '';
+
+        renderTabelKaryawan();
+        renderGrafik();
+      } else if (pass !== null) {
+        alert("Password Salah!");
+      }
+    }
+
+    function hapusKaryawan(id) {
+      const pass = prompt("Masukkan Password Hapus Karyawan:\n(Password: delet@1234#)");
+      if (pass === "delet@1234#") {
+        daftarKaryawan = daftarKaryawan.filter(k => k.id !== id);
+        renderTabelKaryawan();
+        renderGrafik();
+      } else if (pass !== null) {
+        alert("Password Salah!");
+      }
+    }
+
+    function renderTabelKaryawan() {
+      const tbody = document.getElementById('tabelKaryawan');
+      tbody.innerHTML = '';
+      daftarKaryawan.forEach((item, index) => {
+        const statusWajah = item.faceDescriptor 
+          ? '<span style="color: green; font-weight: bold;">✓ Terverifikasi AI</span>' 
+          : '<span style="color: orange; font-weight: bold;">⚠️ Belum Rekam</span>';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${item.nama}</td>
+          <td>${item.nik}</td>
+          <td>${item.jabatan}</td>
+          <td><code>${item.kodeUnik}</code></td>
+          <td>${statusWajah}</td>
+          <td><button class="btn btn-danger" onclick="hapusKaryawan(${item.id})">Hapus</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function ubahLogo() {
+      const pass = prompt("Masukkan Password Admin Logo:\n(Password: logo@1234#)");
+      if (pass === "logo@1234#") {
+        const urlBaru = prompt("Masukkan URL Gambar Logo Baru:");
+        if (urlBaru) document.getElementById('logo-img').src = urlBaru;
+      } else if (pass !== null) alert("Password Salah!");
+    }
+
+    function ubahBackdrop() {
+      const pass = prompt("Masukkan Password Admin Backdrop:\n(Password: bsckdrop@1234#)");
+      if (pass === "bsckdrop@1234#") {
+        const urlBg = prompt("Masukkan URL Gambar Backdrop / Kode Warna Hex:");
+        if (urlBg) {
+          if (urlBg.startsWith("http") || urlBg.startsWith("data:")) {
+            document.getElementById('app-backdrop').style.backgroundImage = `url('${urlBg}')`;
+          } else {
+            document.getElementById('app-backdrop').style.backgroundImage = 'none';
+            document.getElementById('app-backdrop').style.backgroundColor = urlBg;
+          }
+        }
+      } else if (pass !== null) alert("Password Salah!");
+    }
+
+    function eksporExcel() {
+      const pass = prompt("Masukkan Password Ekspor Excel:\n(Password: abseb@1234#)");
+      if (pass === "abseb@1234#") {
+        const wsData = [["ID", "Nama Karyawan", "NIK", "Jabatan", "Kode Unik", "Total Kehadiran (Hari)"]];
+        daftarKaryawan.forEach(k => wsData.push([k.id, k.nama, k.nik, k.jabatan, k.kodeUnik, k.totalHadir]));
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Rekap Presensi");
+        XLSX.writeFile(wb, "Rekap_Presensi_Karyawan.xlsx");
+      } else if (pass !== null) alert("Password Salah!");
+    }
+
+    function verifikasiKodeUnik() {
+      const kode = document.getElementById('inputKodeUnik').value.trim();
+      const ditemukan = daftarKaryawan.find(k => k.kodeUnik === kode);
+      if (ditemukan) {
+        karyawanAktif = ditemukan;
+        document.getElementById('labelNamaKaryawan').innerText = `${ditemukan.nama} (${ditemukan.jabatan})`;
+        document.getElementById('sec-kode-unik').style.display = 'none';
+        document.getElementById('sec-absen').style.display = 'block';
+        startCamera('webcamKaryawan');
+      } else {
+        alert("Kode Unik tidak terdaftar!");
+      }
+    }
+
+    // Proses Verifikasi Wajah + GPS saat Karyawan Absen
+    async function prosesAbsen() {
+      if (!karyawanAktif) return;
+      if (!isAiLoaded) return alert("AI Wajah belum siap, mohon tunggu sebentar!");
+
+      const infoDiv = document.getElementById('infoLokasi');
+      infoDiv.innerHTML = "<em>Sedang memindaian wajah & mengukur lokasi GPS...</em>";
+
+      // 1. Jika belum rekam sampel foto wajah master
+      if (!karyawanAktif.faceDescriptor) {
+        alert("Karyawan belum memiliki data sampel foto wajah master! Hubungi Admin untuk pendaftaran sampel wajah.");
+        infoDiv.innerHTML = "<span style='color:red;'>Gagal: Data Wajah Master Tidak Ada.</span>";
+        return;
+      }
+
+      // 2. Scan Wajah Baru via Kamera
+      const videoElem = document.getElementById('webcamKaryawan');
+      const currentDetection = await faceapi.detectSingleFace(videoElem)
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!currentDetection) {
+        alert("Wajah tidak terdeteksi! Pastikan wajah terlihat jelas di layar.");
+        infoDiv.innerHTML = "<span style='color:red;'>Wajah Tidak Terdeteksi!</span>";
+        return;
+      }
+
+      // 3. Bandingkan Kemiripan Wajah
+      const masterDescriptor = new Float32Array(karyawanAktif.faceDescriptor);
+      const distance = faceapi.euclideanDistance(masterDescriptor, currentDetection.descriptor);
+      const THRESHOLD = 0.52;
+
+      if (distance > THRESHOLD) {
+        alert(`❌ Verifikasi Wajah Gagal! Wajah tidak cocok dengan data ${karyawanAktif.nama}.`);
+        infoDiv.innerHTML = "<span style='color:red;'>❌ Wajah Tidak Cocok!</span>";
+        return;
+      }
+
+      // 4. Jika Wajah Cocok, Lanjutkan Deteksi GPS
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            karyawanAktif.totalHadir += 1;
+            const text = `✓ Presensi Berhasil (${karyawanAktif.nama}). Lat: ${position.coords.latitude.toFixed(5)}, Lng:${position.coords.longitude.toFixed(5)}`;
+            infoDiv.innerHTML = text;
+            alert(`Presensi Berhasil untuk ${karyawanAktif.nama}`);
+          },
+          () => { infoDiv.innerHTML = "Akses lokasi/GPS ditolak."; },
+          { enableHighAccuracy: true }
+        );
+      } else {
+        alert("Geolokalisi tidak didukung browser ini.");
+      }
+    }
+
+    function renderGrafik() {
+      if (chartPie) chartPie.destroy();
+      if (chartBar) chartBar.destroy();
+
+      const ctxPie = document.getElementById('pieChart').getContext('2d');
+      const ctxBar = document.getElementById('barChart').getContext('2d');
+
+      const labels = daftarKaryawan.map(k => k.nama);
+      const dataHadir = daftarKaryawan.map(k => k.totalHadir);
+
+      chartPie = new Chart(ctxPie, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{ data: dataHadir, backgroundColor: ['#1976d2', '#0288d1', '#2e7d32', '#f57c00', '#616161'] }]
+        }
+      });
+
+      chartBar = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{ label: 'Hari Hadir', data: dataHadir, backgroundColor: '#1976d2' }]
+        },
+        options: { scales: { y: { beginAtZero: true } } }
+      });
+    }
+
+    window.onload = initFaceAI;
+  </script>
+</body>
+</html>
