@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aplikasi Presensi Karyawan & Dasbor Admin</title>
+  <title>Aplikasi Presensi Karyawan & Dasbor Admin (Firebase)</title>
   
   <!-- Chart.js & SheetJS -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <!-- Library Face API untuk Pemindaian AI Wajah -->
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-  
+
   <style>
     * { box-sizing: border-box; }
     body {
@@ -85,7 +85,7 @@
 
     <!-- Status AI Wajah -->
     <div id="aiStatus" style="background:#fff3cd; color:#856404; padding:8px 12px; border-radius:6px; margin-bottom:15px; text-align:center; font-size:14px;">
-      ⏳ Memuat AI Verifikasi Wajah... Mohon tunggu.
+      ⏳ Memuat AI Verifikasi Wajah & Firebase... Mohon tunggu.
     </div>
 
     <!-- Header Logo & Bismillah -->
@@ -196,13 +196,27 @@
 
   </div>
 
-  <script>
-    let daftarKaryawan = [
-      { id: 1, nama: 'Ahmad', nik: '1001', jabatan: 'Staff IT', kodeUnik: 'AHM123', totalHadir: 22, faceDescriptor: null },
-      { id: 2, nama: 'Budi', nik: '1002', jabatan: 'Marketing', kodeUnik: 'BUD123', totalHadir: 20, faceDescriptor: null },
-      { id: 3, nama: 'Siti', nik: '1003', jabatan: 'HRD', kodeUnik: 'SIT123', totalHadir: 25, faceDescriptor: null }
-    ];
+  <!-- FIREBASE SDK & APP SCRIPT -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
+    // ⚠️ GANTI KONFIGURASI DI BAWAH INI DENGAN CONFIG PRIBADI DARI FIREBASE CONSOLE ANDA ⚠️
+    const firebaseConfig = {
+      apiKey: "AIzaSyYOUR_API_KEY_HERE",
+      authDomain: "your-app.firebaseapp.com",
+      databaseURL: "https://your-app-default-rtdb.firebaseio.com",
+      projectId: "your-app",
+      storageBucket: "your-app.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:abcdef123456"
+    };
+
+    // Inisialisasi Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let daftarKaryawan = [];
     let karyawanAktif = null;
     let chartPie = null;
     let chartBar = null;
@@ -221,47 +235,52 @@
         isAiLoaded = true;
         aiStatus.style.background = "#d4edda";
         aiStatus.style.color = "#155724";
-        aiStatus.innerText = "✅ AI Verifikasi Wajah Siap!";
+        aiStatus.innerText = "✅ AI Verifikasi Wajah & Firebase Siap!";
       } catch (err) {
         aiStatus.innerText = "❌ Gagal memuat AI Wajah: " + err.message;
       }
     }
 
-    // Fungsi Kamera Ditingkatkan untuk Akses Laptop & HP
+    // Ambil Data Karyawan Real-time dari Firebase
+    const karyawanRef = ref(db, 'karyawan');
+    onValue(karyawanRef, (snapshot) => {
+      daftarKaryawan = [];
+      const data = snapshot.val();
+      if (data) {
+        Object.keys(data).forEach(key => {
+          daftarKaryawan.push({ firebaseId: key, ...data[key] });
+        });
+      }
+      renderTabelKaryawan();
+      renderGrafik();
+    });
+
+    // Fungsi Kamera Fleksibel (Laptop & HP)
     async function startCamera(elementId) {
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
       }
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert("Browser Anda memblokir kamera. Pastikan memberikan izin lokasi & kamera, serta menggunakan jaringan aman (HTTPS/Localhost).");
-        return;
-      }
-
       try {
-        // Mencoba mengaktifkan kamera (default mode)
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         currentStream = stream;
         const videoElem = document.getElementById(elementId);
-        if (videoElem) {
-          videoElem.srcObject = stream;
-        }
+        if (videoElem) videoElem.srcObject = stream;
       } catch (err) {
-        alert("Akses kamera ditolak. Silakan periksa izin kamera di pengaturan browser Anda.");
+        alert("Akses kamera ditolak atau kamera tidak aktif: " + err.message);
       }
     }
 
-    function bukaModalAdmin() {
+    window.bukaModalAdmin = function() {
       document.getElementById('modalAdmin').style.display = 'flex';
       document.getElementById('passAdminInput').value = '';
       document.getElementById('passAdminInput').focus();
-    }
+    };
 
-    function tutupModalAdmin() {
+    window.tutupModalAdmin = function() {
       document.getElementById('modalAdmin').style.display = 'none';
-    }
+    };
 
-    function submitLoginAdmin() {
+    window.submitLoginAdmin = function() {
       const pass = document.getElementById('passAdminInput').value;
       if (pass === "admin@1234#") {
         tutupModalAdmin();
@@ -276,18 +295,18 @@
       } else {
         alert("Password Admin Salah! Gunakan: admin@1234#");
       }
-    }
+    };
 
-    function logoutAdmin() {
+    window.logoutAdmin = function() {
       if (currentStream) currentStream.getTracks().forEach(track => track.stop());
       document.getElementById('page-karyawan').style.display = 'block';
       document.getElementById('page-admin').style.display = 'none';
       document.getElementById('btn-login-admin').style.display = 'inline-block';
       document.getElementById('btn-logout-admin').style.display = 'none';
-    }
+    };
 
-    // Tambah Karyawan Baru & Ekstraksi Fitur Wajah Master
-    async function tambahKaryawan() {
+    // Tambah Karyawan Baru & Simpan ke Firebase Database
+    window.tambahKaryawan = async function() {
       if (!isAiLoaded) return alert("Tunggu hingga AI Wajah selesai dimuat!");
 
       const nama = document.getElementById('newNama').value.trim();
@@ -304,7 +323,6 @@
       if (pass === "daftar@1234#") {
         const videoElem = document.getElementById('webcamAdmin');
         
-        // Pindai & Ambil Descriptor Wajah Karyawan Baru
         const detection = await faceapi.detectSingleFace(videoElem)
           .withFaceLandmarks()
           .withFaceDescriptor();
@@ -314,41 +332,34 @@
           return;
         }
 
-        const idBaru = daftarKaryawan.length > 0 ? daftarKaryawan[daftarKaryawan.length - 1].id + 1 : 1;
-        
-        daftarKaryawan.push({ 
-          id: idBaru, 
-          nama, 
-          nik, 
-          jabatan, 
-          kodeUnik, 
-          totalHadir: 0, 
+        const newRef = push(ref(db, 'karyawan'));
+        await set(newRef, {
+          nama,
+          nik,
+          jabatan,
+          kodeUnik,
+          totalHadir: 0,
           faceDescriptor: Array.from(detection.descriptor)
         });
 
-        alert(`Karyawan ${nama} & data foto AI wajah berhasil terdaftar!`);
+        alert(`Karyawan ${nama} berhasil tersimpan di Firebase!`);
         document.getElementById('newNama').value = '';
         document.getElementById('newNik').value = '';
         document.getElementById('newJabatan').value = '';
         document.getElementById('newKodeUnik').value = '';
-
-        renderTabelKaryawan();
-        renderGrafik();
       } else if (pass !== null) {
         alert("Password Salah!");
       }
-    }
+    };
 
-    function hapusKaryawan(id) {
+    window.hapusKaryawan = function(firebaseId) {
       const pass = prompt("Masukkan Password Hapus Karyawan:\n(Password: delet@1234#)");
       if (pass === "delet@1234#") {
-        daftarKaryawan = daftarKaryawan.filter(k => k.id !== id);
-        renderTabelKaryawan();
-        renderGrafik();
+        remove(ref(db, `karyawan/${firebaseId}`));
       } else if (pass !== null) {
         alert("Password Salah!");
       }
-    }
+    };
 
     function renderTabelKaryawan() {
       const tbody = document.getElementById('tabelKaryawan');
@@ -366,21 +377,21 @@
           <td>${item.jabatan}</td>
           <td><code>${item.kodeUnik}</code></td>
           <td>${statusWajah}</td>
-          <td><button class="btn btn-danger" onclick="hapusKaryawan(${item.id})">Hapus</button></td>
+          <td><button class="btn btn-danger" onclick="hapusKaryawan('${item.firebaseId}')">Hapus</button></td>
         `;
         tbody.appendChild(tr);
       });
     }
 
-    function ubahLogo() {
+    window.ubahLogo = function() {
       const pass = prompt("Masukkan Password Admin Logo:\n(Password: logo@1234#)");
       if (pass === "logo@1234#") {
         const urlBaru = prompt("Masukkan URL Gambar Logo Baru:");
         if (urlBaru) document.getElementById('logo-img').src = urlBaru;
       } else if (pass !== null) alert("Password Salah!");
-    }
+    };
 
-    function ubahBackdrop() {
+    window.ubahBackdrop = function() {
       const pass = prompt("Masukkan Password Admin Backdrop:\n(Password: bsckdrop@1234#)");
       if (pass === "bsckdrop@1234#") {
         const urlBg = prompt("Masukkan URL Gambar Backdrop / Kode Warna Hex:");
@@ -393,21 +404,21 @@
           }
         }
       } else if (pass !== null) alert("Password Salah!");
-    }
+    };
 
-    function eksporExcel() {
+    window.eksporExcel = function() {
       const pass = prompt("Masukkan Password Ekspor Excel:\n(Password: abseb@1234#)");
       if (pass === "abseb@1234#") {
         const wsData = [["ID", "Nama Karyawan", "NIK", "Jabatan", "Kode Unik", "Total Kehadiran (Hari)"]];
-        daftarKaryawan.forEach(k => wsData.push([k.id, k.nama, k.nik, k.jabatan, k.kodeUnik, k.totalHadir]));
+        daftarKaryawan.forEach(k => wsData.push([k.firebaseId, k.nama, k.nik, k.jabatan, k.kodeUnik, k.totalHadir]));
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Rekap Presensi");
         XLSX.writeFile(wb, "Rekap_Presensi_Karyawan.xlsx");
       } else if (pass !== null) alert("Password Salah!");
-    }
+    };
 
-    function verifikasiKodeUnik() {
+    window.verifikasiKodeUnik = function() {
       const kode = document.getElementById('inputKodeUnik').value.trim();
       const ditemukan = daftarKaryawan.find(k => k.kodeUnik === kode);
       if (ditemukan) {
@@ -419,24 +430,22 @@
       } else {
         alert("Kode Unik tidak terdaftar!");
       }
-    }
+    };
 
-    // Proses Verifikasi Wajah + GPS saat Karyawan Absen
-    async function prosesAbsen() {
+    // Verifikasi Absen & Update Data ke Firebase Realtime Database
+    window.prosesAbsen = async function() {
       if (!karyawanAktif) return;
       if (!isAiLoaded) return alert("AI Wajah belum siap, mohon tunggu sebentar!");
 
       const infoDiv = document.getElementById('infoLokasi');
       infoDiv.innerHTML = "<em>Sedang memindaian wajah & mengukur lokasi GPS...</em>";
 
-      // 1. Jika belum rekam sampel foto wajah master
       if (!karyawanAktif.faceDescriptor) {
-        alert("Karyawan belum memiliki data sampel foto wajah master! Hubungi Admin untuk pendaftaran sampel wajah.");
+        alert("Karyawan belum memiliki data sampel foto wajah master!");
         infoDiv.innerHTML = "<span style='color:red;'>Gagal: Data Wajah Master Tidak Ada.</span>";
         return;
       }
 
-      // 2. Scan Wajah Baru via Kamera
       const videoElem = document.getElementById('webcamKaryawan');
       const currentDetection = await faceapi.detectSingleFace(videoElem)
         .withFaceLandmarks()
@@ -448,7 +457,6 @@
         return;
       }
 
-      // 3. Bandingkan Kemiripan Wajah
       const masterDescriptor = new Float32Array(karyawanAktif.faceDescriptor);
       const distance = faceapi.euclideanDistance(masterDescriptor, currentDetection.descriptor);
       const THRESHOLD = 0.52;
@@ -459,14 +467,17 @@
         return;
       }
 
-      // 4. Jika Wajah Cocok, Lanjutkan Deteksi GPS
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          (position) => {
-            karyawanAktif.totalHadir += 1;
-            const text = `✓ Presensi Berhasil (${karyawanAktif.nama}). Lat: ${position.coords.latitude.toFixed(5)}, Lng:${position.coords.longitude.toFixed(5)}`;
+          async (position) => {
+            const newTotalHadir = (karyawanAktif.totalHadir || 0) + 1;
+            
+            // Sync / Simpan perubahan ke Firebase Realtime Database
+            await set(ref(db, `karyawan/${karyawanAktif.firebaseId}/totalHadir`), newTotalHadir);
+
+            const text = `✓ Presensi Berhasil (${karyawanAktif.nama}). Lat: ${position.coords.latitude.toFixed(5)}, Lng: ${position.coords.longitude.toFixed(5)}`;
             infoDiv.innerHTML = text;
-            alert(`Presensi Berhasil untuk ${karyawanAktif.nama}`);
+            alert(`Presensi Berhasil disingkronkan ke Firebase untuk ${karyawanAktif.nama}`);
           },
           () => { infoDiv.innerHTML = "Akses lokasi/GPS ditolak."; },
           { enableHighAccuracy: true }
@@ -474,17 +485,21 @@
       } else {
         alert("Geolokalisi tidak didukung browser ini.");
       }
-    }
+    };
 
     function renderGrafik() {
+      const ctxPieElem = document.getElementById('pieChart');
+      const ctxBarElem = document.getElementById('barChart');
+      if (!ctxPieElem || !ctxBarElem) return;
+
       if (chartPie) chartPie.destroy();
       if (chartBar) chartBar.destroy();
 
-      const ctxPie = document.getElementById('pieChart').getContext('2d');
-      const ctxBar = document.getElementById('barChart').getContext('2d');
+      const ctxPie = ctxPieElem.getContext('2d');
+      const ctxBar = ctxBarElem.getContext('2d');
 
       const labels = daftarKaryawan.map(k => k.nama);
-      const dataHadir = daftarKaryawan.map(k => k.totalHadir);
+      const dataHadir = daftarKaryawan.map(k => k.totalHadir || 0);
 
       chartPie = new Chart(ctxPie, {
         type: 'pie',
