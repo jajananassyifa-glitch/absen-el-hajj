@@ -1,2 +1,2 @@
 laporan- CS-OB
-untuk memperbutuh absensi dan pengaturan karyawan
+agar karyawan bisa terkontrok pekerjaanya 
