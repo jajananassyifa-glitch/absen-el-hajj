@@ -3,10 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aplikasi Laporan CS & OB - El Hajj</title>
+  <title>Aplikasi Laporan CS & OB - El Hajj (Firebase Cloud)</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- Library Chart.js untuk Grafik Interaktif -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Library Kompresi Gambar Otomatis -->
+  <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
   <style>
     :root {
       --bg-backdrop: url('https://via.placeholder.com/1200x800?text=Backdrop+Perusahaan');
@@ -62,6 +64,7 @@
     .btn-stats { background-color: #f39c12; color: white; }
     .btn-excel { background-color: #27ae60; }
     .btn-print { background-color: #8e44ad; }
+    .btn-reset { background-color: #7f8c8d; }
     .btn-delete { background-color: #e74c3c; padding: 5px 10px; font-size: 12px; margin-top: 0; color: white; border-radius: 4px; border: none; cursor: pointer; }
     .btn-logout { background-color: #e74c3c; margin-top: 20px; }
     .screen { display: none; }
@@ -138,6 +141,19 @@
 
     .notif-card { background: white; padding: 25px; border-radius: 12px; text-align: center; max-width: 350px; }
 
+    .filter-box {
+      background: #f0f8ff;
+      border: 1px solid #bfe3f7;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+    .filter-box .form-group { margin-bottom: 0; flex: 1; min-width: 130px; }
+
     @media print {
       body * { visibility: hidden; }
       #printableArea, #printableArea * { visibility: visible; }
@@ -203,7 +219,7 @@
           <input type="file" id="imgAfter" accept="image/*" required>
         </div>
 
-        <button type="submit" id="btnSubmitReport">Kirim Laporan</button>
+        <button type="submit" id="btnSubmitReport">Kirim Laporan ke Cloud</button>
       </form>
       
       <button type="button" onclick="logout()" class="btn-logout">Keluar / Kembali</button>
@@ -211,9 +227,8 @@
 
     <!-- 3. PANEL ADMIN -->
     <div id="screenAdminPanel" class="screen">
-      <h2 style="color: var(--dark-blue); margin-top: 0;">Panel Pengaturan & Riwayat Admin</h2>
+      <h2 style="color: var(--dark-blue); margin-top: 0;">Panel Pengaturan & Riwayat Admin (Cloud Firebase)</h2>
       
-      <!-- NAVIGASI DERETAN ATAS -->
       <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;" class="no-print">
         <button type="button" onclick="openStatsModal()" class="btn-admin btn-stats" style="flex: 1.2; font-size: 11px;">📊 Grafik & Statistik Penilaian</button>
         <button type="button" onclick="addWorker()" class="btn-admin" style="flex: 1; font-size: 11px;">+ Tambah Karyawan</button>
@@ -223,9 +238,8 @@
         <button type="button" onclick="changeBackdrop()" class="btn-admin" style="flex: 1; font-size: 11px;">Ubah Backdrop</button>
       </div>
 
-      <!-- TABEL DAFTAR KARYAWAN TERDAFTAR -->
       <div class="no-print" style="margin-bottom: 25px; background: #eaf2f8; padding: 15px; border-radius: 8px;">
-        <h4 style="margin: 0 0 10px 0; color: var(--dark-blue);">Daftar Karyawan & Kode Unik Terdaftar:</h4>
+        <h4 style="margin: 0 0 10px 0; color: var(--dark-blue);">Daftar Karyawan Terdaftar (Firestore):</h4>
         <div class="table-responsive" style="margin-top: 0;">
           <table>
             <thead>
@@ -243,12 +257,26 @@
         </div>
       </div>
 
-      <!-- LAMPIRAN LAPORAN HASIL KERJA -->
+      <div class="filter-box no-print">
+        <div class="form-group">
+          <label style="font-size: 11px;">Dari Tanggal:</label>
+          <input type="date" id="filterStartDate">
+        </div>
+        <div class="form-group">
+          <label style="font-size: 11px;">Sampai Tanggal:</label>
+          <input type="date" id="filterEndDate">
+        </div>
+        <div style="display: flex; gap: 5px;">
+          <button type="button" onclick="applyDateFilter()" style="padding: 9px 15px; font-size: 12px; margin-top: 0;">Filter</button>
+          <button type="button" onclick="resetDateFilter()" class="btn-reset" style="padding: 9px 15px; font-size: 12px; margin-top: 0;">Reset</button>
+        </div>
+      </div>
+
       <div id="printableArea" class="printable-container">
         <img id="watermarkLogo" src="logo.jpeg" class="watermark-bg" alt="Watermark El Hajj">
 
         <h3 style="color: var(--dark-blue); text-align: center; margin-top: 5px; position: relative; z-index: 2;">LAMPIRAN LAPORAN KEGIATAN CS & OB</h3>
-        <p style="font-size: 11px; text-align: center; color: #555; margin-bottom: 15px; position: relative; z-index: 2;">Dokumen Resmi Operasional El Hajj</p>
+        <p style="font-size: 11px; text-align: center; color: #555; margin-bottom: 15px; position: relative; z-index: 2;">Dokumen Resmi Operasional El Hajj (Real-time Cloud Sync)</p>
 
         <div class="table-responsive">
           <table id="reportTable">
@@ -279,10 +307,8 @@
   </div>
 </div>
 
-<!-- Input File Tersembunyi untuk Upload Logo Baru dari Galeri Admin -->
-<input type="file" id="logoFileInput" accept="image/*" style="display: none;" onchange="handleLogoUpload(event)">
+<input type="file" id="logoFileInput" accept="image/*" style="display: none;">
 
-<!-- MODAL STATISTIK & GRAFIK PENILAIAN BULANAN -->
 <div id="statsModal" class="modal">
   <div class="modal-box">
     <span class="close-modal" onclick="closeModal('statsModal')">&times;</span>
@@ -291,7 +317,7 @@
     <div style="display: flex; gap: 10px; margin-bottom: 10px;">
       <div style="flex: 1;">
         <label style="font-size: 12px;">Pilih Bulan:</label>
-        <select id="filterMonth" onchange="calculateMonthlyStats()">
+        <select id="filterMonth">
           <option value="0">Januari</option>
           <option value="1">Februari</option>
           <option value="2">Maret</option>
@@ -308,17 +334,15 @@
       </div>
       <div style="flex: 1;">
         <label style="font-size: 12px;">Pilih Tahun:</label>
-        <select id="filterYear" onchange="calculateMonthlyStats()"></select>
+        <select id="filterYear"></select>
       </div>
     </div>
 
-    <!-- 1. DIAGRAM LINGKARAN (PIE CHART DI ATAS) -->
     <h5 style="text-align: center; color: var(--dark-blue); margin: 15px 0 5px 0;">Proporsi Kontribusi (Diagram Lingkaran)</h5>
     <div class="chart-container-pie">
       <canvas id="pieChart"></canvas>
     </div>
 
-    <!-- 2. GRAFIK BATANG (BAR CHART DI BAWAHNYA) -->
     <h5 style="text-align: center; color: var(--dark-blue); margin: 15px 0 5px 0;">Jumlah Laporan Per-Karyawan (Grafik Batang)</h5>
     <div class="chart-container-bar">
       <canvas id="performanceChart"></canvas>
@@ -341,164 +365,345 @@
   </div>
 </div>
 
-<!-- Modal Zoom Media -->
 <div id="mediaModal" class="modal">
   <span class="close-modal" onclick="closeModal('mediaModal')" style="color:white; top:20px; right:30px;">&times;</span>
   <div id="mediaContainer"></div>
 </div>
 
-<!-- Modal Notifikasi -->
 <div id="notifModal" class="modal">
   <div class="notif-card">
     <div style="font-size: 45px; color: #27ae60;">✔</div>
     <h3 style="color: var(--dark-blue); margin: 5px 0;">Laporan Berhasil Terkirim!</h3>
-    <p style="color: #555; font-size: 13px;">Foto Bukti Kerja berhasil tersimpan di sistem Admin.</p>
+    <p style="color: #555; font-size: 13px;">Foto dan Data Laporan Berhasil Terunggah ke Firebase Cloud Database.</p>
     <button onclick="closeNotifAndLogout()" style="background-color: #27ae60;">Selesai</button>
   </div>
 </div>
 
-<script>
-  const DEFAULT_LOGO = "logo.jpeg";
+<!-- FIREBASE INTEGRATION SCRIPT MODULE -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
+  // KONFIGURASI FIREBASE ANDA
+  const firebaseConfig = {
+    apiKey: "AIzaSyAB-pj49qih8hxh1QgoXyBzMN-pfMBDfjY",
+    authDomain: "laporan-kerja-cs-cs.firebaseapp.com",
+    databaseURL: "https://laporan-kerja-cs-cs-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "laporan-kerja-cs-cs",
+    storageBucket: "laporan-kerja-cs-cs.firebasestorage.app",
+    messagingSenderId: "745875777066",
+    appId: "1:745875777066:web:0ba178c799a16157f7c553",
+    measurementId: "G-9DN884X5QH"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
+
   const ADMIN_PASSWORD = "adnin@1234#";
   const DELETE_PASSWORD = "delet@1234#"; 
-
-  // Palet warna cerah untuk Diagram Lingkaran
   const PIE_COLORS = ['#3498db', '#e67e22', '#2ecc71', '#9b59b6', '#f1c40f', '#e74c3c', '#1abc9c', '#34495e'];
 
-  let defaultWorkers = [
-    { name: "Ahmad", photo: "https://via.placeholder.com/50?text=Ahmad", role: "CS", code: "CS123" },
-    { name: "Budi", photo: "https://via.placeholder.com/50?text=Budi", role: "OB", code: "OB456" }
-  ];
-
-  let workers = JSON.parse(localStorage.getItem('cs_workers')) || defaultWorkers;
-  let reports = JSON.parse(localStorage.getItem('cs_reports')) || [];
+  let workers = [];
+  let reports = [];
+  let filteredReports = null;
   let myBarChart = null; 
   let myPieChart = null;
 
-  window.onload = function() {
-    loadLogo();
-    loadBackdrop();
+  // SINKRONISASI REALTIME KARYAWAN & LAPORAN DARI FIREBASE
+  onSnapshot(collection(db, "workers"), (snapshot) => {
+    workers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     renderWorkerSelect();
-    setupYearFilter();
-  };
+    renderWorkerList();
+  });
 
-  // VERIFIKASI LOGIN DENGAN KODE UNIK DARI DATA KARYAWAN
-  function loginWorker() {
+  const reportsQuery = query(collection(db, "reports"), orderBy("timestamp", "desc"));
+  onSnapshot(reportsQuery, (snapshot) => {
+    reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    renderReports();
+  });
+
+  window.loginWorker = function() {
     const inputCode = document.getElementById('uniqueCode').value.trim();
-    if (!inputCode) {
-      alert('Silakan masukkan Kode Unik terlebih dahulu!');
-      return;
-    }
+    if (!inputCode) return alert('Silakan masukkan Kode Unik!');
 
-    // Ambil data terbaru dari localStorage
-    workers = JSON.parse(localStorage.getItem('cs_workers')) || defaultWorkers;
     const matchedWorker = workers.find(w => w.code && w.code.toLowerCase() === inputCode.toLowerCase());
-
     if (matchedWorker) {
       document.getElementById('screenLogin').classList.remove('active');
       document.getElementById('screenWorkerForm').classList.add('active');
       document.getElementById('uniqueCode').value = '';
-      
-      renderWorkerSelect();
-      // Auto select karyawan sesuai kode unik yang dimasukkan
       document.getElementById('workerSelect').value = matchedWorker.name;
       updateWorkerPhoto();
     } else {
-      alert('Kode Unik Pekerja Salah atau Tidak Terdaftar!');
+      alert('Kode Unik Pekerja Salah atau Tidak Terdaftar di Firebase!');
     }
-  }
+  };
 
-  function loginAdmin() {
+  window.loginAdmin = function() {
     if (prompt("Masukkan Password Admin:") === ADMIN_PASSWORD) {
       document.getElementById('screenLogin').classList.remove('active');
       document.getElementById('screenAdminPanel').classList.add('active');
-      renderWorkerList();
+      filteredReports = null;
       renderReports();
     } else {
       alert("Password Admin Salah!");
     }
-  }
+  };
 
-  function logout() {
+  window.logout = function() {
     document.getElementById('screenWorkerForm').classList.remove('active');
     document.getElementById('screenAdminPanel').classList.remove('active');
     document.getElementById('screenLogin').classList.add('active');
+  };
+
+  function updateWorkerPhoto() {
+    const selectedName = document.getElementById('workerSelect').value;
+    const worker = workers.find(w => w.name === selectedName);
+    if (worker) document.getElementById('workerPhoto').src = worker.photo || 'https://via.placeholder.com/45';
+  }
+  document.getElementById('workerSelect').addEventListener('change', updateWorkerPhoto);
+
+  function renderWorkerSelect() {
+    const select = document.getElementById('workerSelect');
+    select.innerHTML = '';
+    workers.forEach((w) => {
+      let opt = document.createElement('option');
+      opt.value = w.name;
+      opt.textContent = `${w.name} (${w.role || 'CS'})`;
+      select.appendChild(opt);
+    });
+    updateWorkerPhoto();
   }
 
-  // FUNGSI UPLOAD LOGO DARI GALERI & PERMANEN REFRESH
-  function changeLogo() {
-    document.getElementById('logoFileInput').click();
+  function renderWorkerList() {
+    const tbody = document.getElementById('registeredWorkersBody');
+    tbody.innerHTML = '';
+    workers.forEach((w, i) => {
+      let roleBadge = w.role === 'OB' ? '<span class="badge-role badge-ob">OB</span>' : '<span class="badge-role badge-cs">CS</span>';
+      let tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td><img src="${w.photo || 'https://via.placeholder.com/45'}" class="emp-photo" style="width:30px;height:30px;"></td>
+        <td><strong>${w.name}</strong></td>
+        <td><code>${w.code || '-'}</code></td>
+        <td>${roleBadge}</td>
+        <td style="text-align: center;"><button class="btn-delete" onclick="deleteWorkerDirect('${w.id}')">Hapus</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
   }
 
-  function handleLogoUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+  window.addWorker = async function() {
+    const name = prompt("Masukkan Nama Karyawan Baru:");
+    if (!name) return;
+    let code = prompt("Masukkan Kode Unik untuk " + name + ":");
+    if (!code) return alert("Kode unik wajib diisi!");
+    if (workers.some(w => w.code && w.code.toLowerCase() === code.trim().toLowerCase())) return alert("Kode Unik sudah digunakan!");
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const base64Image = e.target.result;
-      try {
-        localStorage.setItem('cs_logo', base64Image);
-        applyLogo(base64Image);
-        alert("Logo berhasil diperbarui dan tersimpan permanen!");
-      } catch (err) {
-        alert("Ukuran gambar logo terlalu besar! Silakan gunakan foto berukuran lebih kecil.");
+    let roleInput = prompt("Masukkan Penggolongan Tugas Pekerja (CS / OB):", "CS");
+    let role = (roleInput && roleInput.toUpperCase() === "OB") ? "OB" : "CS";
+    const photo = prompt("Masukkan URL Foto Karyawan (Opsional):") || "https://via.placeholder.com/50";
+
+    await addDoc(collection(db, "workers"), { name, photo, role, code: code.trim() });
+    alert("Karyawan " + name + " tersimpan di Cloud Database!");
+  };
+
+  window.changeEmployeeCode = async function() {
+    const name = prompt("Masukkan Nama Karyawan yang Ingin Diubah Kode Uniknya:");
+    if (!name) return;
+    const worker = workers.find(w => w.name.toLowerCase() === name.toLowerCase());
+    if (worker) {
+      const newCode = prompt("Masukkan Kode Unik Baru untuk " + worker.name + ":", worker.code || "");
+      if (newCode) {
+        await updateDoc(doc(db, "workers", worker.id), { code: newCode.trim() });
+        alert("Kode Unik diperbarui!");
       }
-    };
-    reader.readAsDataURL(file);
+    } else { alert("Karyawan tidak ditemukan."); }
+  };
+
+  window.changeEmployeePhoto = async function() {
+    const name = prompt("Masukkan Nama Karyawan yang Ingin Diubah Fotonya:");
+    if (!name) return;
+    const worker = workers.find(w => w.name.toLowerCase() === name.toLowerCase());
+    if (worker) {
+      const url = prompt("Masukkan URL Foto Baru:");
+      if (url) {
+        await updateDoc(doc(db, "workers", worker.id), { photo: url });
+        alert("Foto Karyawan diperbarui!");
+      }
+    } else { alert("Karyawan tidak ditemukan."); }
+  };
+
+  window.deleteWorkerDirect = async function(id) {
+    if (prompt("Masukkan Password Hapus Karyawan:") === DELETE_PASSWORD) {
+      await deleteDoc(doc(db, "workers", id));
+      alert("Karyawan terhapus!");
+    } else { alert("Password Hapus Salah!"); }
+  };
+
+  async function compressFile(file) {
+    const options = { maxSizeMB: 0.3, maxWidthOrHeight: 1200, useWebWorker: true };
+    try {
+      if (typeof imageCompression !== 'undefined') return await imageCompression(file, options);
+      return file;
+    } catch (e) { return file; }
   }
 
-  function loadLogo() {
-    const savedLogo = localStorage.getItem('cs_logo');
-    if (savedLogo) {
-      applyLogo(savedLogo);
-    } else {
-      applyLogo(DEFAULT_LOGO);
+  document.getElementById('reportForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('btnSubmitReport');
+    submitBtn.innerText = "Mengompres & Mengunggah ke Cloud...";
+    submitBtn.disabled = true;
+
+    try {
+      const selectedName = document.getElementById('workerSelect').value;
+      const workerObj = workers.find(w => w.name === selectedName);
+      const workerDisplay = workerObj ? `${workerObj.name} [${workerObj.role || 'CS'}]` : selectedName;
+
+      const title = document.getElementById('jobTitle').value;
+      const desc = document.getElementById('jobDesc').value;
+      const rawBefore = document.getElementById('imgBefore').files[0];
+      const rawAfter = document.getElementById('imgAfter').files[0];
+
+      const compressedBefore = await compressFile(rawBefore);
+      const compressedAfter = await compressFile(rawAfter);
+
+      const timestamp = Date.now();
+      const refBefore = ref(storage, `reports/${timestamp}_before.jpg`);
+      const refAfter = ref(storage, `reports/${timestamp}_after.jpg`);
+
+      await uploadBytes(refBefore, compressedBefore);
+      await uploadBytes(refAfter, compressedAfter);
+
+      const urlBefore = await getDownloadURL(refBefore);
+      const urlAfter = await getDownloadURL(refAfter);
+
+      await addDoc(collection(db, "reports"), {
+        timestamp: new Date().toISOString(),
+        date: new Date().toLocaleString('id-ID'),
+        worker: workerDisplay,
+        title: title,
+        desc: desc,
+        before: urlBefore,
+        after: urlAfter
+      });
+
+      document.getElementById('reportForm').reset();
+      document.getElementById('notifModal').style.display = "flex";
+    } catch (err) {
+      console.error(err);
+      alert("Gagal mengunggah laporan ke Cloud Storage.");
+    } finally {
+      submitBtn.innerText = "Kirim Laporan ke Cloud";
+      submitBtn.disabled = false;
     }
-  }
+  });
 
-  function applyLogo(urlOrBase64) {
-    const compLogo = document.getElementById('companyLogo');
-    const waterLogo = document.getElementById('watermarkLogo');
-    
-    if (compLogo) compLogo.src = urlOrBase64;
-    if (waterLogo) waterLogo.src = urlOrBase64;
-  }
+  window.closeNotifAndLogout = function() {
+    document.getElementById('notifModal').style.display = "none";
+    window.logout();
+  };
 
-  function changeBackdrop() {
-    const url = prompt("Masukkan URL Gambar Backdrop Baru:");
-    if (url) {
-      localStorage.setItem('cs_backdrop', url);
-      document.documentElement.style.setProperty('--bg-backdrop', `url('${url}')`);
-      alert("Backdrop berhasil diperbarui.");
+  function renderReports() {
+    const tbody = document.getElementById('reportTableBody');
+    tbody.innerHTML = '';
+    let displayData = filteredReports !== null ? filteredReports : reports;
+
+    if (displayData.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Belum ada laporan di Cloud.</td></tr>';
+      return;
     }
+
+    displayData.forEach((r) => {
+      let tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.date}</td>
+        <td>${r.worker}</td>
+        <td>${r.title}</td>
+        <td>${r.desc}</td>
+        <td><img src="${r.before}" class="img-preview" onclick="viewMedia('img', '${r.before}')"></td>
+        <td><img src="${r.after}" class="img-preview" onclick="viewMedia('img', '${r.after}')"></td>
+        <td class="no-print"><button class="btn-delete" onclick="deleteReport('${r.id}')">Hapus</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
   }
 
-  function loadBackdrop() {
-    const savedBackdrop = localStorage.getItem('cs_backdrop');
-    if (savedBackdrop) {
-      document.documentElement.style.setProperty('--bg-backdrop', `url('${savedBackdrop}')`);
-    }
-  }
+  window.deleteReport = async function(id) {
+    if (prompt("Masukkan Password Hapus Laporan:") === DELETE_PASSWORD) {
+      await deleteDoc(doc(db, "reports", id));
+      alert("Laporan berhasil dihapus dari Cloud!");
+    } else { alert("Password Hapus Salah!"); }
+  };
 
-  // STATISTIK BULANAN
+  window.viewMedia = function(type, src) {
+    const modal = document.getElementById('mediaModal');
+    const container = document.getElementById('mediaContainer');
+    container.innerHTML = `<img src="${src}" class="modal-content">`;
+    modal.style.display = "flex";
+  };
+
+  window.closeModal = function(id) { document.getElementById(id).style.display = "none"; };
+
+  window.applyDateFilter = function() {
+    const startDateVal = document.getElementById('filterStartDate').value;
+    const endDateVal = document.getElementById('filterEndDate').value;
+
+    if (!startDateVal || !endDateVal) return alert("Silakan pilih Tanggal Mulai dan Tanggal Selesai!");
+
+    let start = new Date(startDateVal); start.setHours(0, 0, 0, 0);
+    let end = new Date(endDateVal); end.setHours(23, 59, 59, 999);
+
+    filteredReports = reports.filter(r => {
+      let rDate = new Date(r.timestamp);
+      return rDate >= start && rDate <= end;
+    });
+    renderReports();
+  };
+
+  window.resetDateFilter = function() {
+    document.getElementById('filterStartDate').value = '';
+    document.getElementById('filterEndDate').value = '';
+    filteredReports = null;
+    renderReports();
+  };
+
+  window.exportToExcel = function() {
+    let currentReports = filteredReports !== null ? filteredReports : reports;
+    if (currentReports.length === 0) return alert("Tidak ada data laporan!");
+
+    let exportData = currentReports.map((r, index) => ({
+      "No": index + 1,
+      "Tanggal": r.date || "-",
+      "Pekerja": r.worker || "-",
+      "Judul Pekerjaan": r.title || "-",
+      "Penjelasan Pekerjaan": r.desc || "-"
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan CS & OB");
+    XLSX.writeFile(wb, "Laporan_Kebersihan_ElHajj_Cloud.xlsx");
+  };
+
+  window.openStatsModal = function() {
+    document.getElementById('statsModal').style.display = 'flex';
+    setupYearFilter();
+    calculateMonthlyStats();
+  };
+
   function setupYearFilter() {
     const yearSelect = document.getElementById('filterYear');
     const currentYear = new Date().getFullYear();
     yearSelect.innerHTML = '';
     for (let y = currentYear - 2; y <= currentYear + 2; y++) {
       let opt = document.createElement('option');
-      opt.value = y;
-      opt.textContent = y;
+      opt.value = y; opt.textContent = y;
       if (y === currentYear) opt.selected = true;
       yearSelect.appendChild(opt);
     }
     document.getElementById('filterMonth').value = new Date().getMonth();
-  }
-
-  function openStatsModal() {
-    document.getElementById('statsModal').style.display = 'flex';
-    calculateMonthlyStats();
   }
 
   function calculateMonthlyStats() {
@@ -506,41 +711,28 @@
     const selectedYear = parseInt(document.getElementById('filterYear').value);
 
     let monthlyReports = reports.filter(r => {
-      let reportDate = new Date(r.timestamp || r.id);
+      let reportDate = new Date(r.timestamp);
       return reportDate.getMonth() === selectedMonth && reportDate.getFullYear() === selectedYear;
     });
 
     let totalMonthlyReports = monthlyReports.length;
-
     let counts = {};
     workers.forEach(w => counts[w.name] = 0);
 
     monthlyReports.forEach(r => {
       workers.forEach(w => {
-        if (r.worker.startsWith(w.name)) {
-          counts[w.name] = (counts[w.name] || 0) + 1;
-        }
+        if (r.worker.startsWith(w.name)) counts[w.name] = (counts[w.name] || 0) + 1;
       });
     });
 
     const tbody = document.getElementById('statsTableBody');
     tbody.innerHTML = '';
-
-    let chartLabels = [];
-    let chartData = [];
-    let chartColors = [];
-
-    if (workers.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Belum ada data karyawan.</td></tr>';
-      return;
-    }
+    let chartLabels = [], chartData = [], chartColors = [];
 
     workers.forEach(w => {
       let count = counts[w.name] || 0;
       let percentage = totalMonthlyReports > 0 ? ((count / totalMonthlyReports) * 100).toFixed(1) : 0;
-      
-      let statusText = "Perlu Ditingkatkan";
-      let statusColor = "#e74c3c";
+      let statusText = "Perlu Ditingkatkan", statusColor = "#e74c3c";
       if (percentage >= 30) { statusText = "Sangat Rajin"; statusColor = "#27ae60"; }
       else if (percentage >= 15) { statusText = "Cukup Rajin"; statusColor = "#f39c12"; }
 
@@ -555,9 +747,7 @@
         <td style="text-align: center;"><strong>${count}</strong> Laporan</td>
         <td>
           <div style="font-size:11px; margin-bottom:2px;">${percentage}%</div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" style="width: ${percentage}%;"></div>
-          </div>
+          <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${percentage}%;"></div></div>
         </td>
         <td><span style="color:${statusColor}; font-weight:bold; font-size:11px;">${statusText}</span></td>
       `;
@@ -566,325 +756,55 @@
 
     renderCharts(chartLabels, chartData, chartColors);
   }
+  document.getElementById('filterMonth').addEventListener('change', calculateMonthlyStats);
+  document.getElementById('filterYear').addEventListener('change', calculateMonthlyStats);
 
   function renderCharts(labels, data, barColors) {
     const ctxPie = document.getElementById('pieChart').getContext('2d');
     if (myPieChart) myPieChart.destroy();
-
     myPieChart = new Chart(ctxPie, {
       type: 'pie',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: data,
-          backgroundColor: PIE_COLORS.slice(0, labels.length)
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { font: { size: 10 } } }
-        }
-      }
+      data: { labels, datasets: [{ data, backgroundColor: PIE_COLORS.slice(0, labels.length) }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
     });
 
     const ctxBar = document.getElementById('performanceChart').getContext('2d');
     if (myBarChart) myBarChart.destroy();
-
     myBarChart = new Chart(ctxBar, {
       type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Jumlah Laporan Terkirim',
-          data: data,
-          backgroundColor: barColors,
-          borderRadius: 6,
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { stepSize: 1, precision: 0 }
-          }
-        }
-      }
+      data: { labels, datasets: [{ label: 'Laporan', data, backgroundColor: barColors, borderRadius: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } } } }
     });
   }
 
-  // MANAJEMEN DAFTAR KARYAWAN & KODE UNIK
-  function renderWorkerList() {
-    workers = JSON.parse(localStorage.getItem('cs_workers')) || defaultWorkers;
-    const tbody = document.getElementById('registeredWorkersBody');
-    tbody.innerHTML = '';
-    workers.forEach((w, i) => {
-      let roleBadge = w.role === 'OB' 
-        ? '<span class="badge-role badge-ob">OB</span>' 
-        : '<span class="badge-role badge-cs">CS</span>';
-
-      let tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${i + 1}</td>
-        <td><img src="${w.photo}" class="emp-photo" style="width:30px;height:30px;"></td>
-        <td><strong>${w.name}</strong></td>
-        <td><code>${w.code || '-'}</code></td>
-        <td>${roleBadge}</td>
-        <td style="text-align: center;"><button class="btn-delete" onclick="deleteWorkerDirect(${i})">Hapus</button></td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
-
-  function addWorker() {
-    const name = prompt("Masukkan Nama Karyawan Baru:");
-    if (!name) return;
-
-    let code = prompt("Masukkan Kode Unik untuk " + name + " (Contoh: CS001):");
-    if (!code) {
-      alert("Kode unik wajib diisi!");
-      return;
-    }
-
-    if (workers.some(w => w.code && w.code.toLowerCase() === code.trim().toLowerCase())) {
-      alert("Kode Unik sudah digunakan oleh karyawan lain!");
-      return;
-    }
-
-    let roleInput = prompt("Masukkan Penggolongan Tugas Pekerja (Ketik CS atau OB):", "CS");
-    let role = "CS";
-    if (roleInput && roleInput.toUpperCase() === "OB") role = "OB";
-
-    const photo = prompt("Masukkan URL Foto Karyawan (Opsional):") || "https://via.placeholder.com/50";
-    
-    workers.push({ name: name, photo: photo, role: role, code: code.trim() });
-    saveWorkers();
-    alert("Karyawan " + name + " berhasil ditambahkan dengan Kode Unik: " + code);
-  }
-
-  function changeEmployeeCode() {
-    const name = prompt("Masukkan Nama Karyawan yang Ingin Diubah Kode Uniknya:");
-    if (!name) return;
-    
-    const worker = workers.find(w => w.name.toLowerCase() === name.toLowerCase());
-    if (worker) {
-      const newCode = prompt("Masukkan Kode Unik Baru untuk " + worker.name + ":", worker.code || "");
-      if (newCode) {
-        if (workers.some(w => w.name !== worker.name && w.code && w.code.toLowerCase() === newCode.trim().toLowerCase())) {
-          alert("Kode Unik tersebut sudah dipakai oleh karyawan lain!");
-          return;
-        }
-        worker.code = newCode.trim();
-        saveWorkers();
-        alert("Kode Unik karyawan " + worker.name + " berhasil diperbarui!");
-      }
-    } else {
-      alert("Karyawan tidak ditemukan.");
-    }
-  }
-
-  function deleteWorkerDirect(index) {
-    if (prompt("Masukkan Password Hapus Karyawan:") === DELETE_PASSWORD) {
-      workers.splice(index, 1);
-      saveWorkers();
-      alert("Karyawan berhasil dihapus!");
-    } else {
-      alert("Password Hapus Salah!");
-    }
-  }
-
-  function changeEmployeePhoto() {
-    const name = prompt("Masukkan Nama Karyawan yang Ingin Diubah Fotonya:");
-    if (!name) return;
-
-    const worker = workers.find(w => w.name.toLowerCase() === name.toLowerCase());
-    if (worker) {
-      const url = prompt("Masukkan URL Foto Baru:");
-      if (url) { worker.photo = url; saveWorkers(); }
-    } else {
-      alert("Karyawan tidak ditemukan.");
-    }
-  }
-
-  function saveWorkers() {
-    localStorage.setItem('cs_workers', JSON.stringify(workers));
-    renderWorkerSelect();
-    renderWorkerList();
-  }
-
-  function renderWorkerSelect() {
-    workers = JSON.parse(localStorage.getItem('cs_workers')) || defaultWorkers;
-    const select = document.getElementById('workerSelect');
-    select.innerHTML = '';
-    workers.forEach((w) => {
-      let opt = document.createElement('option');
-      opt.value = w.name;
-      opt.textContent = `${w.name} (${w.role || 'CS'})`;
-      select.appendChild(opt);
-    });
-    updateWorkerPhoto();
-  }
-
-  document.getElementById('workerSelect').addEventListener('change', updateWorkerPhoto);
-
-  function updateWorkerPhoto() {
-    const selectedName = document.getElementById('workerSelect').value;
-    const worker = workers.find(w => w.name === selectedName);
-    if (worker) document.getElementById('workerPhoto').src = worker.photo;
-  }
-
-  // SUBMIT LAPORAN
-  document.getElementById('reportForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const submitBtn = document.getElementById('btnSubmitReport');
-    submitBtn.innerText = "Mengirim Foto...";
-    submitBtn.disabled = true;
-
-    const selectedName = document.getElementById('workerSelect').value;
-    const workerObj = workers.find(w => w.name === selectedName);
-    const workerDisplay = workerObj ? `${workerObj.name} [${workerObj.role || 'CS'}]` : selectedName;
-
-    const title = document.getElementById('jobTitle').value;
-    const desc = document.getElementById('jobDesc').value;
-    const fileBefore = document.getElementById('imgBefore').files[0];
-    const fileAfter = document.getElementById('imgAfter').files[0];
-
-    const readerImgBefore = new FileReader();
-    readerImgBefore.onload = function(e1) {
-      const readerImgAfter = new FileReader();
-      readerImgAfter.onload = function(e2) {
-        const newReport = {
-          id: Date.now(),
-          timestamp: new Date().toISOString(),
-          date: new Date().toLocaleString('id-ID'),
-          worker: workerDisplay,
-          title: title,
-          desc: desc,
-          before: e1.target.result,
-          after: e2.target.result
-        };
-
-        try {
-          reports.push(newReport);
-          localStorage.setItem('cs_reports', JSON.stringify(reports));
-          document.getElementById('reportForm').reset();
-          document.getElementById('notifModal').style.display = "flex";
-        } catch (err) {
-          alert("Ukuran foto terlalu besar. Silakan coba foto dengan resolusi yang lebih kecil.");
-        }
-        
-        submitBtn.innerText = "Kirim Laporan";
-        submitBtn.disabled = false;
-      };
-      readerImgAfter.readAsDataURL(fileAfter);
+  document.getElementById('logoFileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      localStorage.setItem('cs_logo', evt.target.result);
+      applyLogo(evt.target.result);
+      alert("Logo diperbarui!");
     };
-    readerImgBefore.readAsDataURL(fileBefore);
+    reader.readAsDataURL(file);
   });
 
-  function closeNotifAndLogout() {
-    document.getElementById('notifModal').style.display = "none";
-    logout();
+  window.changeLogo = function() { document.getElementById('logoFileInput').click(); };
+  function applyLogo(url) {
+    document.getElementById('companyLogo').src = url;
+    document.getElementById('watermarkLogo').src = url;
   }
+  if (localStorage.getItem('cs_logo')) applyLogo(localStorage.getItem('cs_logo'));
 
-  function renderReports() {
-    const tbody = document.getElementById('reportTableBody');
-    tbody.innerHTML = '';
-    reports = JSON.parse(localStorage.getItem('cs_reports')) || [];
-
-    if (reports.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Belum ada laporan.</td></tr>';
-      return;
+  window.changeBackdrop = function() {
+    const url = prompt("Masukkan URL Gambar Backdrop Baru:");
+    if (url) {
+      localStorage.setItem('cs_backdrop', url);
+      document.documentElement.style.setProperty('--bg-backdrop', `url('${url}')`);
     }
+  };
+  if (localStorage.getItem('cs_backdrop')) document.documentElement.style.setProperty('--bg-backdrop', `url('${localStorage.getItem('cs_backdrop')}')`);
 
-    reports.forEach((r, index) => {
-      // Pengecekan kompatibilitas data lama jika masih ada 'videoAfter'
-      let afterMediaHtml = r.after 
-        ? `<img src="${r.after}" class="img-preview" onclick="viewMedia('img', '${r.after}')">`
-        : (r.videoAfter ? `<video class="video-preview" onclick="viewMedia('video', '${r.videoAfter}')"><source src="${r.videoAfter}"></video>` : '-');
-
-      let tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${r.date}</td>
-        <td>${r.worker}</td>
-        <td>${r.title}</td>
-        <td>${r.desc}</td>
-        <td><img src="${r.before}" class="img-preview" onclick="viewMedia('img', '${r.before}')"></td>
-        <td>${afterMediaHtml}</td>
-        <td class="no-print"><button class="btn-delete" onclick="deleteReport(${index})">Hapus</button></td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
-
-  function deleteReport(index) {
-    if (prompt("Masukkan Password Hapus Laporan:") === DELETE_PASSWORD) {
-      reports.splice(index, 1);
-      localStorage.setItem('cs_reports', JSON.stringify(reports));
-      renderReports();
-    } else {
-      alert("Password Hapus Salah!");
-    }
-  }
-
-  function viewMedia(type, src) {
-    const modal = document.getElementById('mediaModal');
-    const container = document.getElementById('mediaContainer');
-    container.innerHTML = '';
-
-    if (type === 'img') {
-      container.innerHTML = `<img src="${src}" class="modal-content">`;
-    } else {
-      container.innerHTML = `<video controls autoplay class="modal-content"><source src="${src}"></video>`;
-    }
-    modal.style.display = "flex";
-  }
-
-  function closeModal(id) { document.getElementById(id).style.display = "none"; }
-
-  // FUNGSI EXPORT EXCEL
-  function exportToExcel() {
-    let currentReports = JSON.parse(localStorage.getItem('cs_reports')) || [];
-
-    if (currentReports.length === 0) {
-      alert("Tidak ada data laporan untuk diekspor!");
-      return;
-    }
-
-    let exportData = currentReports.map((r, index) => ({
-      "No": index + 1,
-      "Tanggal": r.date || "-",
-      "Pekerja": r.worker || "-",
-      "Judul Pekerjaan": r.title || "-",
-      "Penjelasan Pekerjaan": r.desc || "-"
-    }));
-
-    try {
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      
-      ws['!cols'] = [
-        { wch: 5 },  // No
-        { wch: 20 }, // Tanggal
-        { wch: 20 }, // Pekerja
-        { wch: 30 }, // Judul
-        { wch: 45 }  // Penjelasan
-      ];
-
-      XLSX.utils.book_append_sheet(wb, ws, "Laporan CS & OB");
-      XLSX.writeFile(wb, "Laporan_Kebersihan_ElHajj.xlsx");
-    } catch (err) {
-      console.error("Gagal melakukan ekspor Excel:", err);
-      alert("Gagal melakukan ekspor Excel.");
-    }
-  }
 </script>
 </body>
 </html>
