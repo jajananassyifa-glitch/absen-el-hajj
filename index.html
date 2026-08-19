@@ -95,7 +95,8 @@
     th { background-color: rgba(235, 245, 251, 0.9); color: var(--dark-blue); }
     td { background-color: rgba(255, 255, 255, 0.8); }
     
-    .img-preview { width: 60px; height: 60px; object-fit: cover; border-radius: 4px; cursor: pointer; }
+    .img-gallery { display: flex; gap: 5px; flex-wrap: wrap; }
+    .img-preview { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid #ddd; }
     .emp-photo { width: 45px; height: 45px; object-fit: cover; border-radius: 50%; border: 2px solid var(--primary-blue); }
     
     .badge-role {
@@ -193,13 +194,14 @@
           <textarea id="jobDesc" rows="3" placeholder="Detail pekerjaan..." required></textarea>
         </div>
 
+        <!-- MENGIZINKAN BANYAK FOTO SEBELUM & SESUDAH -->
         <div class="form-group">
-          <label>Foto Sebelum Pekerjaan (Before) - Bisa pilih >1 foto:</label>
+          <label>Foto Sebelum Pekerjaan (Before) - *Bisa pilih beberapa foto sekaligus*:</label>
           <input type="file" id="imgBefore" accept="image/*" multiple required>
         </div>
 
         <div class="form-group">
-          <label>Foto Sesudah Pekerjaan (After) - Bisa pilih >1 foto:</label>
+          <label>Foto Sesudah Pekerjaan (After) - *Bisa pilih beberapa foto sekaligus*:</label>
           <input type="file" id="imgAfter" accept="image/*" multiple required>
         </div>
 
@@ -362,7 +364,6 @@
   const ADMIN_PASSWORD = "adnin@1234#";
   const DELETE_PASSWORD = "delet@1234#"; 
 
-  // Palet warna cerah untuk Diagram Lingkaran
   const PIE_COLORS = ['#3498db', '#e67e22', '#2ecc71', '#9b59b6', '#f1c40f', '#e74c3c', '#1abc9c', '#34495e'];
 
   let defaultWorkers = [
@@ -382,7 +383,6 @@
     setupYearFilter();
   };
 
-  // VERIFIKASI LOGIN DENGAN KODE UNIK DARI DATA KARYAWAN
   function loginWorker() {
     const inputCode = document.getElementById('uniqueCode').value.trim();
     if (!inputCode) {
@@ -735,19 +735,20 @@
     if (worker) document.getElementById('workerPhoto').src = worker.photo;
   }
 
-  // FUNGSI PENUMPANG BANYAK FOTO (MULTI-FILES READ)
-  function readMultipleFiles(files) {
-    return Promise.all(Array.from(files).map(file => {
+  // FUNGSI KONVERSI MULTIPLE FILE MENJADI BASE64
+  function readFilesAsBase64(files) {
+    const promises = Array.from(files).map(file => {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = e => resolve(e.target.result);
         reader.onerror = err => reject(err);
         reader.readAsDataURL(file);
       });
-    }));
+    });
+    return Promise.all(promises);
   }
 
-  // SUBMIT LAPORAN MULTI-FOTO
+  // SUBMIT LAPORAN UNTUK BANYAK FOTO
   document.getElementById('reportForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
@@ -766,8 +767,8 @@
     const filesAfter = document.getElementById('imgAfter').files;
 
     try {
-      const imagesBefore = await readMultipleFiles(filesBefore);
-      const imagesAfter = await readMultipleFiles(filesAfter);
+      const beforeImages = await readFilesAsBase64(filesBefore);
+      const afterImages = await readFilesAsBase64(filesAfter);
 
       const newReport = {
         id: Date.now(),
@@ -776,8 +777,8 @@
         worker: workerDisplay,
         title: title,
         desc: desc,
-        before: imagesBefore,
-        after: imagesAfter
+        before: beforeImages, // Menyimpan array foto before
+        after: afterImages    // Menyimpan array foto after
       };
 
       reports.push(newReport);
@@ -785,11 +786,11 @@
       document.getElementById('reportForm').reset();
       document.getElementById('notifModal').style.display = "flex";
     } catch (err) {
-      alert("Ukuran atau jumlah foto terlalu besar! Silakan kurangi jumlah foto atau gunakan ukuran file lebih kecil.");
+      alert("Gagal membaca file atau ukuran foto terlalu besar. Gunakan foto dengan resolusi lebih kecil.");
+    } finally {
+      submitBtn.innerText = "Kirim Laporan";
+      submitBtn.disabled = false;
     }
-    
-    submitBtn.innerText = "Kirim Laporan";
-    submitBtn.disabled = false;
   });
 
   function closeNotifAndLogout() {
@@ -797,7 +798,6 @@
     logout();
   }
 
-  // TAMPILKAN LAPORAN MULTI-FOTO
   function renderReports() {
     const tbody = document.getElementById('reportTableBody');
     tbody.innerHTML = '';
@@ -809,23 +809,17 @@
     }
 
     reports.forEach((r, index) => {
-      // Render Foto Before (Mendukung 1 foto lama atau array multi-foto baru)
-      let beforeHtml = '';
-      if (Array.isArray(r.before)) {
-        beforeHtml = r.before.map(img => `<img src="${img}" class="img-preview" style="margin:2px;" onclick="viewMedia('img', '${img}')">`).join('');
-      } else if (r.before) {
-        beforeHtml = `<img src="${r.before}" class="img-preview" onclick="viewMedia('img', '${r.before}')">`;
-      }
+      // Menangani kompatibilitas format foto tunggal (versi lama) dan foto jamak (versi baru)
+      let beforeArr = Array.isArray(r.before) ? r.before : [r.before];
+      let afterArr = Array.isArray(r.after) ? r.after : (r.after ? [r.after] : []);
 
-      // Render Foto After (Mendukung 1 foto lama atau array multi-foto baru)
-      let afterHtml = '';
-      if (Array.isArray(r.after)) {
-        afterHtml = r.after.map(img => `<img src="${img}" class="img-preview" style="margin:2px;" onclick="viewMedia('img', '${img}')">`).join('');
-      } else if (r.after) {
-        afterHtml = `<img src="${r.after}" class="img-preview" onclick="viewMedia('img', '${r.after}')">`;
-      } else if (r.videoAfter) {
-        afterHtml = `<video class="video-preview" onclick="viewMedia('video', '${r.videoAfter}')"><source src="${r.videoAfter}"></video>`;
-      }
+      let beforeHtml = `<div class="img-gallery">` + 
+        beforeArr.map(src => `<img src="${src}" class="img-preview" onclick="viewMedia('img', '${src}')">`).join('') + 
+        `</div>`;
+
+      let afterHtml = `<div class="img-gallery">` + 
+        afterArr.map(src => `<img src="${src}" class="img-preview" onclick="viewMedia('img', '${src}')">`).join('') + 
+        `</div>`;
 
       let tr = document.createElement('tr');
       tr.innerHTML = `
@@ -833,8 +827,8 @@
         <td>${r.worker}</td>
         <td>${r.title}</td>
         <td>${r.desc}</td>
-        <td><div style="display:flex; flex-wrap:wrap; gap:3px;">${beforeHtml}</div></td>
-        <td><div style="display:flex; flex-wrap:wrap; gap:3px;">${afterHtml}</div></td>
+        <td>${beforeHtml}</td>
+        <td>${afterHtml || '-'}</td>
         <td class="no-print"><button class="btn-delete" onclick="deleteReport(${index})">Hapus</button></td>
       `;
       tbody.appendChild(tr);
@@ -866,7 +860,6 @@
 
   function closeModal(id) { document.getElementById(id).style.display = "none"; }
 
-  // EXPORT KE EXCEL
   function exportToExcel() {
     let currentReports = JSON.parse(localStorage.getItem('cs_reports')) || [];
 
